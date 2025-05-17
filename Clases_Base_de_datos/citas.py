@@ -34,7 +34,7 @@ class Cita(ABC):
     ser_atendido(self)
         Marca la cita como atendida y cambia su estado a 'completado'.
     """
-    def __init__(self, id_cita: str, paciente: str, medico: str, fecha_hora: str, motivo: str,  estado: str='pendiente', atendido: bool=False) -> None:
+    def __init__(self, id_cita: str, paciente: str, medico: str, fecha_hora: str, motivo: str = '',  estado: str='pendiente', atendido: bool=False) -> None:
         """
         Inicializa una nueva cita médica con el ID, paciente, médico, fecha_hora, estado y si ha sido atendida o no.
 

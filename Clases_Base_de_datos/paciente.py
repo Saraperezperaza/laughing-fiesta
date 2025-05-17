@@ -63,7 +63,7 @@ class Paciente(Persona):
     """
 
     def __init__(self, id: str,username: str, password: str, nombre: str, apellido: str, edad: int, genero: str, estado: str, historial_medico: List[str] = None):
-        super().__init__(id, nombre, apellido, edad, genero, 'paciente')
+        super().__init__(id, nombre, apellido, edad, genero, 'paciente', password)
         self.username = username
         self.__password = password
         self.estado = estado
