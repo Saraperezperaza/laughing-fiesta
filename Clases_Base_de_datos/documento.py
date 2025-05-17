@@ -23,7 +23,7 @@ class Documento:
         Devuelve el valor de la prioridad del documento (1 si es urgente, 0 si no lo es).
     """
 
-    def __init__(self, titulo: str, descripcion: str)->None:
+    def __init__(self, id, titulo: str, descripcion: str)->None:
         """
         Inicializa una instancia de `Documento` con título y descripción.
 
@@ -39,6 +39,7 @@ class Documento:
         ValueError
             Si el título o la descripción están vacíos.
         """
+        self.id = id
         self.titulo = titulo
         self.descripcion = descripcion
         self.urgente = False

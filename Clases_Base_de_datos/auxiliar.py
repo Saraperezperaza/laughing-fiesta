@@ -43,7 +43,7 @@ class Auxiliar(Trabajador):
         Asigna un enfermero al auxiliar, si no tiene uno asignado.
     """
 
-    def __init__(self, id: str, nombre: str, apellido: str, edad: int, genero: str, turno: str, horas: int, salario: float, antiguedad: int) -> None:
+    def __init__(self, id: str, nombre: str, apellido: str, edad: int, genero: str, turno: str, horas: int, salario: float, antiguedad: int, id_enfermero: str) -> None:
         """
         Inicializa una instancia de `Auxiliar`. Valida el ID, ajusta el salario y asigna los atributos.
 
@@ -80,6 +80,7 @@ class Auxiliar(Trabajador):
         if not id.startswith('AUX'):
             raise ValueError('ID inválido, el ID debe empezar por AUX')
         self.salario = self.calculo_salario()
+        self.id_enfermero = id_enfermero
 
     def calculo_salario(self) -> float:
         """

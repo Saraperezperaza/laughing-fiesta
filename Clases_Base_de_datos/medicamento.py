@@ -28,7 +28,7 @@ class Medicamento:
         Verifica si el medicamento ha caducado o no.
     """
 
-    def __init__(self, nombre: str, dosis: str, precio: float, fecha_caducidad: datetime, alergenos: list = None)->None:
+    def __init__(self, id: str, nombre: str, dosis: str, precio: float, fecha_caducidad: datetime, alergenos: list = None)->None:
         """
         Inicializa los atributos del medicamento, incluidos alérgenos si se proporcionan.
 
@@ -50,6 +50,7 @@ class Medicamento:
         ValueError
             Si la fecha de caducidad no es válida.
         """
+        self.id = id
         self.nombre = nombre
         self.dosis = dosis
         self.precio = precio

@@ -33,7 +33,7 @@ class Enfermedad:
         Devuelve la lista de pacientes afectados por la enfermedad.
     """
 
-    def __init__(self, nombre: str, sintomas: str, cronica: bool = False):
+    def __init__(self, id, nombre: str, sintomas: str, cronica: bool = False):
         """
         Inicializa una instancia de `Enfermedad` con nombre, síntomas y la condición de si es crónica o no.
 
@@ -51,6 +51,7 @@ class Enfermedad:
         ValueError
             Si no se proporciona nombre o síntomas.
         """
+        self.id = id
         if not nombre or not sintomas:
             raise ValueError('Debe proporcionar nombre y síntomas para la enfermedad.')
         self.nombre = nombre
