@@ -71,10 +71,10 @@ class Paciente(Persona):
         self.alergias = []
         self._prioridad_urgencias = 0
         if historial_medico is not None: #Es opcional, si se inserta algo se guarda en el historial, sino, es una lista vacía
-            self.__historial_medico = historial_medico
+            self.historial_medico = historial_medico
         else:
-            self.__historial_medico = []
-        self._citas: List[Cita] = []
+            self.historial_medico = []
+        self.citas: List[Cita] = []
 
     def cambiar_estado(self, nuevo_estado: str) -> None:
         """
@@ -121,8 +121,8 @@ class Paciente(Persona):
             No retorna valor. Modifica internamente la lista de enfermedades del paciente
             y muestra un mensaje indicando si fue asignada o ya existía.
         """
-        if enfermedad not in self.__enfermedades:
-            self.__enfermedades.append(enfermedad)
+        if enfermedad not in self.enfermedades:
+            self.enfermedades.append(enfermedad)
             print(f'Se ha asignado la enfermedad al paciente {self._nombre}.')
         else:
             print(f'El paciente {self._nombre} ya tiene registrada la enfermedad')
@@ -137,7 +137,7 @@ class Paciente(Persona):
             Diccionario con los atributos del paciente, incluyendo médicos, enfermeros, habitación y citas.
         """
         lista_citas = []
-        for cita in self._citas:
+        for cita in self.citas:
             lista_citas.append(cita.to_dict()) #Añadimos todas las citas a la lista de citas
         return {
             'id': self.id,
@@ -145,7 +145,7 @@ class Paciente(Persona):
             'password': self.__password,
             'nombre': self._nombre,
             'edad': self.edad,
-            'historial_medico': self.__historial_medico,
+            'historial_medico': self.historial_medico,
             'citas': lista_citas,
             'rol': self._rol,
             'estado': self.__estado,
