@@ -55,6 +55,7 @@ class Medicamento:
         self.dosis = dosis
         self.precio = precio
         self.fecha_caducidad = fecha_caducidad
+        self.sintomas_curables = []
         if alergenos is not None: #Alergennos es un atributo opcional, si hay algo, se guarda, sino es una lista vacía
             self.alergenos = alergenos
         else:

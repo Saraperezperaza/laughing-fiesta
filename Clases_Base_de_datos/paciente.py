@@ -1,7 +1,6 @@
 from typing import List
-from persona import Persona
-from citas import Cita
-from enfermedades import Enfermedad
+from Clases_Base_de_datos.persona import Persona
+from Clases_Base_de_datos.citas import Cita
 class Paciente(Persona):
     """
     Clase que representa a un paciente en el sistema de gestión hospitalaria.
@@ -67,8 +66,9 @@ class Paciente(Persona):
         super().__init__(id, nombre, apellido, edad, genero, 'paciente')
         self.username = username
         self.__password = password
-        self.__estado = estado
-        self.__enfermedades = []
+        self.estado = estado
+        self.enfermedades = []
+        self.alergias = []
         self._prioridad_urgencias = 0
         if historial_medico is not None: #Es opcional, si se inserta algo se guarda en el historial, sino, es una lista vacía
             self.__historial_medico = historial_medico
