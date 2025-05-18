@@ -1,4 +1,4 @@
-from provincia import Provincia
+from Clases_Base_de_datos.provincia import Provincia
 class Centro(Provincia):
     """
     Clase que representa un centro médico. Hereda de la clase `Provincia` y gestiona información

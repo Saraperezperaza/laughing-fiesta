@@ -1,4 +1,4 @@
-from trabajador import Trabajador
+from Clases_Base_de_datos.trabajador import Trabajador
 
 class Auxiliar(Trabajador):
     """

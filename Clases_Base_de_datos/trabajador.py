@@ -1,4 +1,4 @@
-from persona import Persona
+from Clases_Base_de_datos.persona import Persona
 
 class Trabajador(Persona):
     """

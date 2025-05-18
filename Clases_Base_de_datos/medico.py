@@ -1,4 +1,4 @@
-from trabajador import Trabajador
+from Clases_Base_de_datos.trabajador import Trabajador
 
 class Medico(Trabajador):
     """
@@ -25,7 +25,7 @@ class Medico(Trabajador):
     """
 
     def __init__(self, id: str, username: str, password: str, nombre: str, apellido: str, edad: int, genero: str,
-                     turno: str, horas: int, salario: float, especialidad: str, antiguedad: int)->None:
+                     turno: str, horas: int, salario: float, especialidad: str, antiguedad: int, disponibilidad:bool)->None:
         """
         Inicializa un objeto Medico con los datos proporcionados y ajusta el salario según la experiencia.
 
@@ -67,6 +67,7 @@ class Medico(Trabajador):
         self.especialidad = especialidad
         self.antiguedad = antiguedad
         self._salario = salario
+        self.disponibilidad = disponibilidad
         self._salario = self.calculo_salario()
         if not id.startswith('MED'):
             raise ValueError('ID inválido, el ID debe empezar por MED')
@@ -105,7 +106,7 @@ class Medico(Trabajador):
             'id': self.id,
             'username': self.username,
             'password': self.__password,
-            'nombre': self._nombre,
+            'nombre': self.nombre,
             'apellido': self._apellido,
             'edad': self.edad,
             'genero': self._genero,
@@ -127,7 +128,7 @@ class Medico(Trabajador):
             Representación en texto del médico.
         """
         return (
-            f'ID: {self.id} - Nombre: {self._nombre} - Apellido {self._apellido} - Edad {self.edad} - Género {self._genero} - Turno: {self.turno} - '
+            f'ID: {self.id} - Nombre: {self.nombre} - Apellido {self._apellido} - Edad {self.edad} - Género {self._genero} - Turno: {self.turno} - '
             f'Horas: {self.horas} - Especialidad: {self.especialidad} - Salario: {self._salario} - Antiguedad: {self.antiguedad}'
         )
 

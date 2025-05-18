@@ -35,7 +35,7 @@ class Persona:
         """
 
         self.id = id
-        self._nombre = nombre
+        self.nombre = nombre
         self._apellido = apellido
         self.edad = edad
         self._genero = genero
@@ -51,7 +51,7 @@ class Persona:
         """
         return {
             'id': self.id,
-            'nombre': self._nombre,
+            'nombre': self.nombre,
             'apellido': self._apellido,
             'edad': self.edad,
             'genero': self._genero,
@@ -79,4 +79,4 @@ class Persona:
         str: Una cadena con la información básica de la persona.
         """
 
-        return(f'ID: {self.id} - Nombre: {self._nombre} - Apellido {self._apellido} - Edad {self.edad} - Género {self._genero}')
+        return(f'ID: {self.id} - Nombre: {self.nombre} - Apellido {self._apellido} - Edad {self.edad} - Género {self._genero}')

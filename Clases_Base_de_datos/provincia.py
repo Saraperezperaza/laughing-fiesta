@@ -1,4 +1,4 @@
-from comunidad import Comunidad
+from Clases_Base_de_datos.comunidad import Comunidad
 
 
 class Provincia(Comunidad):

@@ -1,4 +1,4 @@
-from trabajador import Trabajador
+from Clases_Base_de_datos.trabajador import Trabajador
 class Enfermero(Trabajador):
     """
     Clase que representa a un enfermero del sistema hospitalario. Hereda de la clase Trabajador y añade
@@ -129,7 +129,7 @@ class Enfermero(Trabajador):
             lista_ids.append(paciente.id)
         return {
             'id': self.id,
-            'nombre': self._nombre,
+            'nombre': self.nombre,
             'apellido': self._apellido,
             'edad': self.edad,
             'genero': self._genero,
@@ -153,5 +153,5 @@ class Enfermero(Trabajador):
             str
         Cadena con los atributos más relevantes del enfermero.
         """
-        return (f'ID: {self.id} - Nombre: {self._nombre} - Apellido: {self._apellido} - Edad: {self.edad} - Género: {self._genero} - Turno: {self.turno} '
+        return (f'ID: {self.id} - Nombre: {self.nombre} - Apellido: {self._apellido} - Edad: {self.edad} - Género: {self._genero} - Turno: {self.turno} '
                     f'- Horas: {self.horas} - Especialidad: {self.especialidad} - Salario: {self._salario} - Antiguedad: {self.antiguedad}')

@@ -98,13 +98,13 @@ class Paciente(Persona):
         """
         if self.__estado.lower() == 'grave':
             self._prioridad_urgencias = 1
-            print(f'El paciente {self._nombre} tiene prioridad alta en urgencias.')
+            print(f'El paciente {self.nombre} tiene prioridad alta en urgencias.')
         elif self.__estado.lower() == 'moderado':
             self._prioridad_urgencias = 2
-            print(f'El paciente {self._nombre} tiene prioridad moderada en urgencias.')
+            print(f'El paciente {self.nombre} tiene prioridad moderada en urgencias.')
         elif self.__estado.lower() == 'leve':
             self._prioridad_urgencias = 3
-            print(f'El paciente {self._nombre} tiene prioridad baja en urgencias.')
+            print(f'El paciente {self.nombre} tiene prioridad baja en urgencias.')
 
     def asignar_enfermedades(self, enfermedad: object) -> None:
         """
@@ -123,9 +123,9 @@ class Paciente(Persona):
         """
         if enfermedad not in self.enfermedades:
             self.enfermedades.append(enfermedad)
-            print(f'Se ha asignado la enfermedad al paciente {self._nombre}.')
+            print(f'Se ha asignado la enfermedad al paciente {self.nombre}.')
         else:
-            print(f'El paciente {self._nombre} ya tiene registrada la enfermedad')
+            print(f'El paciente {self.nombre} ya tiene registrada la enfermedad')
 
     def to_dict(self)->dict:
         """
@@ -143,7 +143,7 @@ class Paciente(Persona):
             'id': self.id,
             'username': self.username,
             'password': self.__password,
-            'nombre': self._nombre,
+            'nombre': self.nombre,
             'edad': self.edad,
             'historial_medico': self.historial_medico,
             'citas': lista_citas,

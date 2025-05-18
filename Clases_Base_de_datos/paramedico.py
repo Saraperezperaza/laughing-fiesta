@@ -1,4 +1,4 @@
-from trabajador import Trabajador
+from Clases_Base_de_datos.trabajador import Trabajador
 
 class Paramedico(Trabajador):
     """
@@ -91,5 +91,5 @@ class Paramedico(Trabajador):
             Información detallada sobre el paramédico.
         """
         return (
-            f'Nombre: {self._nombre} - ID: {self.id} - Edad: {self.edad} - Género: {self._genero} - Turno: {self.turno} - Horas: {self.horas} - '
+            f'Nombre: {self.nombre} - ID: {self.id} - Edad: {self.edad} - Género: {self._genero} - Turno: {self.turno} - Horas: {self.horas} - '
             f' Salario: {self._salario} - Especialidad: {self.especialidad} - Antiguedad: {self.antiguedad} ')

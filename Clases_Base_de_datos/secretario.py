@@ -1,5 +1,5 @@
-from trabajador import Trabajador
-from documento import Documento
+from Clases_Base_de_datos.trabajador import Trabajador
+from Clases_Base_de_datos.documento import Documento
 
 class Secretario(Trabajador, Documento):
     """
@@ -48,7 +48,7 @@ class Secretario(Trabajador, Documento):
         Envía un correo electrónico con el asunto y el mensaje proporcionados al destinatario.
     """
 
-    def __init__(self, id: str, nombre: str, apellido: str, edad: int, genero: str, turno: str, horas: int,salario: float, titulo: str, descripcion: str, antiguedad: int, email: str, departamento: str):
+    def __init__(self, id: str, nombre: str, apellido: str, edad: int, genero: str, turno: str, horas: int,salario: float, titulo: str, descripcion: str, antiguedad: int, email: str, departamento: str, id_documento: str):
         """
         Inicializa un nuevo objeto Secretario con la información proporcionada.
 
@@ -82,7 +82,7 @@ class Secretario(Trabajador, Documento):
             El departamento al que pertenece el secretario.
         """
         Trabajador.__init__(self, id, nombre, apellido, edad, genero, turno, horas, salario)
-        Documento.__init__(self, titulo, descripcion)
+        Documento.__init__(self, id_documento, titulo, descripcion)
         self.antiguedad = antiguedad
         self.email = email
         self.departamento = departamento
