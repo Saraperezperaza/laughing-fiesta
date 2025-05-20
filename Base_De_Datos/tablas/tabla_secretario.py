@@ -1,53 +1,66 @@
 import sqlite3
-import json
 import os
+from typing import List, Tuple
 
-# Construir ruta absoluta al fichero de base de datos
-base = os.path.dirname(os.path.dirname(__file__))
-db_path = os.path.join(base, 'base_de_datos.db')
+# Base de datos en la misma carpeta que este script
+_db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bdd.db')
 
 def conectar() -> sqlite3.Connection:
     """
     Establece una conexión con la base de datos SQLite.
 
-    Devuelve
-    --------
+    Returns
+    -------
     sqlite3.Connection
         Conexión activa al archivo de base de datos.
     """
-    conn = sqlite3.connect(db_path)
-    # Habilitar claves foráneas
+    conn = sqlite3.connect(_db_path)
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
 
 def crear_tabla_secretarios() -> None:
     """
-    Crea la tabla 'secretarios', que hereda de la tabla 'trabajadores'.
+    Crea la tabla 'secretarios' en la base de datos si no existe.
 
-    Esta tabla contiene únicamente los campos específicos de los secretarios.
-    La información general está en 'personas' y 'trabajadores'.
+    La tabla contiene los siguientes campos:
+    - id : TEXT
+        Identificador único del secretario (clave primaria).
+    - titulo : TEXT
+        Título académico o profesional.
+    - descripcion : TEXT
+        Descripción de funciones administrativas.
+    - antiguedad : INTEGER
+        Años de experiencia o servicio.
+    - email : TEXT
+        Dirección de correo electrónico.
+    - departamento : TEXT
+        Departamento al que pertenece.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute(
+        '''
         CREATE TABLE IF NOT EXISTS secretarios (
             id TEXT PRIMARY KEY,
             titulo TEXT NOT NULL,
             descripcion TEXT NOT NULL,
             antiguedad INTEGER NOT NULL,
             email TEXT NOT NULL,
-            departamento TEXT NOT NULL,
-            FOREIGN KEY (id) REFERENCES trabajadores(id) ON DELETE CASCADE
-        )
-    ''')
+            departamento TEXT NOT NULL
+        );
+        '''
+    )
     conn.commit()
     conn.close()
-    print("Tabla 'secretarios' creada correctamente.")
 
 
 def insertar_secretario(
-    id: str,
+    secretario_id: str,
     titulo: str,
     descripcion: str,
     antiguedad: int,
@@ -57,72 +70,86 @@ def insertar_secretario(
     """
     Inserta un nuevo secretario en la tabla 'secretarios'.
 
-    La persona debe haber sido registrada previamente en 'personas' y 'trabajadores'.
-
-    Parámetros
+    Parameters
     ----------
-    id : str
-        Identificador único del secretario (ya debe existir en 'trabajadores').
+    secretario_id : str
+        Identificador único del secretario.
     titulo : str
         Título académico o profesional.
     descripcion : str
-        Descripción del rol o funciones administrativas.
+        Descripción de funciones.
     antiguedad : int
-        Años de experiencia o servicio.
+        Años de experiencia.
     email : str
-        Dirección de correo electrónico.
+        Correo electrónico.
     departamento : str
-        Departamento al que pertenece el secretario.
+        Departamento asociado.
+
+    Raises
+    ------
+    ValueError
+        Si la inserción viola restricciones de integridad.
+
+    Returns
+    -------
+    None
     """
+    conn = conectar()
+    cursor = conn.cursor()
     try:
-        conn = conectar()
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO secretarios (
-                id, titulo, descripcion, antiguedad, email, departamento
-            ) VALUES (?, ?, ?, ?, ?, ?)
-        ''', (id, titulo, descripcion, antiguedad, email, departamento))
+        cursor.execute(
+            "INSERT INTO secretarios (id, titulo, descripcion, antiguedad, email, departamento) VALUES (?, ?, ?, ?, ?, ?);",
+            (secretario_id, titulo, descripcion, antiguedad, email, departamento)
+        )
         conn.commit()
-        print(f"Secretario/a con ID '{id}' insertado correctamente.")
-    except sqlite3.IntegrityError:
-        print("Error: ID no existe en 'trabajadores' o ya está registrado como secretario.")
+    except sqlite3.IntegrityError as e:
+        raise ValueError(f"Error de integridad al insertar secretario: {e}")
     finally:
         conn.close()
 
 
-def leer_secretarios() -> list:
+def leer_secretarios() -> List[Tuple[str, str, str, int, str, str]]:
     """
-    Recupera todos los registros de la tabla 'secretarios'.
+    Recupera todos los secretarios almacenados.
 
-    Devuelve
-    --------
-    list
-        Lista de tuplas con los datos de los secretarios.
+    Returns
+    -------
+    List[Tuple[str, str, str, int, str, str]]
+        Tuplas con campos:
+        (id, titulo, descripcion, antiguedad, email, departamento).
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM secretarios")
-    resultado = cursor.fetchall()
+    cursor.execute(
+        "SELECT id, titulo, descripcion, antiguedad, email, departamento FROM secretarios;"
+    )
+    resultados = cursor.fetchall()
     conn.close()
-    return resultado
+    return resultados
 
 
-def eliminar_secretario(id: str) -> None:
+def eliminar_secretario(secretario_id: str) -> None:
     """
-    Elimina un secretario según su identificador.
+    Elimina un secretario de la base de datos por su identificador.
 
-    Parámetros
+    Parameters
     ----------
-    id : str
-        Identificador único del secretario.
+    secretario_id : str
+        Identificador del secretario a eliminar.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM secretarios WHERE id = ?", (id,))
+    cursor.execute(
+        "DELETE FROM secretarios WHERE id = ?;",
+        (secretario_id,)
+    )
     conn.commit()
     conn.close()
-    print(f"Secretario/a con ID '{id}' eliminado.")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     crear_tabla_secretarios()

@@ -1,130 +1,169 @@
 import sqlite3
-import json
 import os
+from typing import List, Tuple
 
-# Construir ruta absoluta al fichero de base de datos
-base = os.path.dirname(os.path.dirname(__file__))
-db_path = os.path.join(base, 'base_de_datos.db')
+# Base de datos en la misma carpeta que este script
+db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bdd.db')
 
 def conectar() -> sqlite3.Connection:
     """
     Establece una conexión con la base de datos SQLite.
 
-    Devuelve
-    --------
+    Returns
+    -------
     sqlite3.Connection
         Conexión activa al archivo de base de datos.
     """
     conn = sqlite3.connect(db_path)
-    # Habilitar claves foráneas
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
-def crear_tabla_enfermedades():
-    """
-    Crea la tabla 'enfermedades' si no existe ya en la base de datos.
 
-    La tabla almacena información sobre cada enfermedad:
-    - id: clave primaria única.
-    - nombre: nombre de la enfermedad.
-    - sintomas: descripción textual de los síntomas.
-    - cronica: indica si la enfermedad es crónica (0 o 1).
-    - grave: indica si la enfermedad es grave (0 o 1).
+def crear_tabla_enfermedades() -> None:
+    """
+    Crea la tabla 'enfermedades' en la base de datos si no existe.
+
+    La tabla contiene los siguientes campos:
+    - id : TEXT
+        Identificador único de la enfermedad (clave primaria).
+    - nombre : TEXT
+        Nombre de la enfermedad.
+    - sintomas : TEXT
+        Descripción de los síntomas.
+    - cronica : INTEGER
+        Indicador de cronicidad (0: no, 1: sí), por defecto 0.
+    - grave : INTEGER
+        Indicador de gravedad (0: no, 1: sí), por defecto 0.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute(
+        '''
         CREATE TABLE IF NOT EXISTS enfermedades (
             id TEXT PRIMARY KEY,
             nombre TEXT NOT NULL,
             sintomas TEXT NOT NULL,
-            cronica INTEGER DEFAULT 0,
-            grave INTEGER DEFAULT 0
-        )
-    ''')
+            cronica INTEGER NOT NULL DEFAULT 0,
+            grave INTEGER NOT NULL DEFAULT 0
+        );
+        '''
+    )
     conn.commit()
     conn.close()
-    print("Tabla 'enfermedades' creada correctamente.")
 
-def insertar_enfermedad(id: str, nombre: str, sintomas: str, cronica: bool = False, grave: bool = False):
+
+def insertar_enfermedad(
+    enfermedad_id: str,
+    nombre: str,
+    sintomas: str,
+    cronica: bool = False,
+    grave: bool = False
+) -> None:
     """
-    Inserta una nueva enfermedad en la tabla.
+    Inserta una nueva enfermedad en la tabla 'enfermedades'.
 
-    Parámetros
+    Parameters
     ----------
-    id : str
+    enfermedad_id : str
         Identificador único de la enfermedad.
     nombre : str
         Nombre de la enfermedad.
     sintomas : str
         Descripción de los síntomas asociados.
-    cronica : bool, opcional
-        Indica si la enfermedad es crónica (por defecto False).
-    grave : bool, opcional
-        Indica si la enfermedad es grave (por defecto False).
+    cronica : bool, optional
+        Indica si la enfermedad es crónica; por defecto False.
+    grave : bool, optional
+        Indica si la enfermedad es grave; por defecto False.
+
+    Raises
+    ------
+    ValueError
+        Si la inserción viola restricciones de integridad.
+
+    Returns
+    -------
+    None
     """
+    conn = conectar()
+    cursor = conn.cursor()
     try:
-        conn = conectar()
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO enfermedades (
-                id, nombre, sintomas, cronica, grave
-            ) VALUES (?, ?, ?, ?, ?)
-        ''', (id, nombre, sintomas, int(cronica), int(grave)))
+        cursor.execute(
+            "INSERT INTO enfermedades (id, nombre, sintomas, cronica, grave) VALUES (?, ?, ?, ?, ?);",
+            (enfermedad_id, nombre, sintomas, int(cronica), int(grave))
+        )
         conn.commit()
-        print(f"Enfermedad '{nombre}' insertada correctamente.")
-    except sqlite3.IntegrityError:
-        print("Error: El ID ya existe.")
+    except sqlite3.IntegrityError as e:
+        raise ValueError(f"Error de integridad al insertar enfermedad: {e}")
     finally:
         conn.close()
 
-def leer_enfermedades():
-    """
-    Recupera todos los registros de la tabla 'enfermedades'.
 
-    Devuelve
-    --------
-    list of tuple
-        Lista con las enfermedades almacenadas en la base de datos.
+def leer_enfermedades() -> List[Tuple[str, str, str, int, int]]:
+    """
+    Recupera todas las enfermedades almacenadas en la base de datos.
+
+    Returns
+    -------
+    List[Tuple[str, str, str, int, int]]
+        Tuplas con campos:
+        (id, nombre, sintomas, cronica, grave).
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM enfermedades")
-    enfermedades = cursor.fetchall()
+    cursor.execute(
+        "SELECT id, nombre, sintomas, cronica, grave FROM enfermedades;"
+    )
+    resultados = cursor.fetchall()
     conn.close()
-    return enfermedades
+    return resultados
 
-def marcar_enfermedad_grave(id: str):
+
+def marcar_enfermedad_grave(enfermedad_id: str) -> None:
     """
-    Marca una enfermedad como grave en la base de datos.
+    Marca una enfermedad como grave (grave = 1).
 
-    Parámetros
+    Parameters
     ----------
-    id : str
-        Identificador único de la enfermedad a modificar.
+    enfermedad_id : str
+        Identificador de la enfermedad a actualizar.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("UPDATE enfermedades SET grave = 1 WHERE id = ?", (id,))
+    cursor.execute(
+        "UPDATE enfermedades SET grave = 1 WHERE id = ?;",
+        (enfermedad_id,)
+    )
     conn.commit()
     conn.close()
-    print(f"Enfermedad {id} marcada como grave.")
 
-def eliminar_enfermedad(id: str):
+
+def eliminar_enfermedad(enfermedad_id: str) -> None:
     """
-    Elimina una enfermedad de la base de datos.
+    Elimina una enfermedad de la base de datos por su identificador.
 
-    Parámetros
+    Parameters
     ----------
-    id : str
+    enfermedad_id : str
         Identificador único de la enfermedad a eliminar.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM enfermedades WHERE id = ?", (id,))
+    cursor.execute('DELETE FROM enfermedades WHERE id = ?;', (enfermedad_id,))
     conn.commit()
     conn.close()
-    print(f"Enfermedad {id} eliminada.")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     crear_tabla_enfermedades()
+

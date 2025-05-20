@@ -1,57 +1,70 @@
 import sqlite3
-import json
 import os
+from typing import List, Tuple, Optional
 
-# Construir ruta absoluta al fichero de base de datos
-base = os.path.dirname(os.path.dirname(__file__))
-db_path = os.path.join(base, 'base_de_datos.db')
+# Base de datos en la misma carpeta que este script
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bdd.db')
+
 
 def conectar() -> sqlite3.Connection:
     """
     Establece una conexión con la base de datos SQLite.
 
-    Devuelve
-    --------
+    Returns
+    -------
     sqlite3.Connection
         Conexión activa al archivo de base de datos.
     """
-    conn = sqlite3.connect(db_path)
-    # Habilitar claves foráneas
+    conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
+
 
 def crear_tabla_ambulancias() -> None:
     """
     Crea la tabla 'ambulancias' en la base de datos si no existe.
 
-    La tabla contiene los siguientes campos:
-    - matricula (clave primaria)
-    - zona
-    - modelo
-    - sirena ('bitonal' o 'secuencial')
-    - id_centro (clave foránea referida a la tabla 'centros')
+    La tabla contiene los siguientes campos (sin claves foráneas):
+    - matricula : TEXT PRIMARY KEY
+    - zona       : TEXT NOT NULL
+    - modelo     : TEXT NOT NULL
+    - sirena     : TEXT NOT NULL, restricción IN ('bitonal','secuencial')
+    - id_centro  : TEXT NOT NULL
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute("SELECT * FROM ambulancias;")
+    cursor.execute(
+        '''
         CREATE TABLE IF NOT EXISTS ambulancias (
             matricula TEXT PRIMARY KEY,
             zona TEXT NOT NULL,
             modelo TEXT NOT NULL,
-            sirena TEXT NOT NULL CHECK (sirena IN ('bitonal', 'secuencial')),
+            sirena TEXT NOT NULL CHECK(sirena IN ('bitonal','secuencial')),
             id_centro TEXT NOT NULL,
-            FOREIGN KEY (id_centro) REFERENCES centros(id)
-        )
-    ''')
+            FOREIGN KEY (id_centro) REFERENCES centros(id_centro) ON DELETE CASCADE
+        );
+        '''
+    )
     conn.commit()
     conn.close()
-    print("Tabla 'ambulancias' creada correctamente.")
 
-def insertar_ambulancia(matricula: str, zona: str, modelo: str, sirena: str, id_centro: str) -> None:
+
+def insertar_ambulancia(
+    matricula: str,
+    zona: str,
+    modelo: str,
+    sirena: str,
+    id_centro: str
+) -> None:
     """
     Inserta una nueva ambulancia en la base de datos.
 
-    Parametros
+    Parameters
     ----------
     matricula : str
         Matrícula única de la ambulancia.
@@ -62,93 +75,125 @@ def insertar_ambulancia(matricula: str, zona: str, modelo: str, sirena: str, id_
     sirena : str
         Tipo de sirena ('bitonal' o 'secuencial').
     id_centro : str
-        Identificador del centro al que pertenece la ambulancia.
-    """
-    try:
-        conn = conectar()
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO ambulancias (matricula, zona, modelo, sirena, id_centro)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (matricula, zona, modelo, sirena, id_centro))
-        conn.commit()
-        print("Ambulancia insertada con éxito.")
-    except sqlite3.IntegrityError as e:
-        print("Error de integridad:", e)
-    except Exception as e:
-        print("Error al insertar ambulancia:", e)
-    finally:
-        conn.close()
+        Identificador del centro asociado.
 
-def leer_ambulancias() -> list:
-    """
-    Recupera todos los registros de ambulancias almacenados.
+    Raises
+    ------
+    ValueError
+        Si falla la integridad de la inserción.
 
-    Devuelve
+    Returns
     -------
-    Lista
-        Lista de tuplas, cada una representando una ambulancia.
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM ambulancias")
-    ambulancias = cursor.fetchall()
+    try:
+        cursor.execute(
+            "INSERT INTO ambulancias (matricula, zona, modelo, sirena, id_centro) VALUES (?, ?, ?, ?, ?);",
+            (matricula, zona, modelo, sirena, id_centro)
+        )
+        conn.commit()
+    except sqlite3.IntegrityError as e:
+        raise ValueError(f"Error de integridad al insertar ambulancia: {e}")
+    finally:
+        conn.close()
+
+
+def leer_ambulancias() -> List[Tuple[str, str, str, str, str]]:
+    """
+    Recupera todas las ambulancias registradas.
+
+    Returns
+    -------
+    List[Tuple[str, str, str, str, str]]
+        Tuplas con campos:
+        (matricula, zona, modelo, sirena, id_centro).
+    """
+    conn = conectar()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT matricula, zona, modelo, sirena, id_centro FROM ambulancias;"
+    )
+    resultados = cursor.fetchall()
     conn.close()
-    return ambulancias
+    return resultados
+
 
 def actualizar_ambulancia(
     matricula: str,
-    nueva_zona: str = None,
-    nuevo_modelo: str = None,
-    nueva_sirena: str = None,
-    nuevo_id_centro: str = None
+    nueva_zona: Optional[str] = None,
+    nuevo_modelo: Optional[str] = None,
+    nueva_sirena: Optional[str] = None,
+    nuevo_id_centro: Optional[str] = None
 ) -> None:
     """
     Actualiza los datos de una ambulancia existente.
 
-    Parametros
+    Parameters
     ----------
     matricula : str
-        Matrícula de la ambulancia a actualizar.
-    nueva_zona : str, optional
+        Matrícula de la ambulancia.
+    nueva_zona : Optional[str]
         Nueva zona asignada.
-    nuevo_modelo : str, optional
+    nuevo_modelo : Optional[str]
         Nuevo modelo del vehículo.
-    nueva_sirena : str, optional
+    nueva_sirena : Optional[str]
         Nuevo tipo de sirena.
-    nuevo_id_centro : str, optional
-        Nuevo ID del centro al que se asocia la ambulancia.
+    nuevo_id_centro : Optional[str]
+        Nuevo identificador de centro.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    if nueva_zona:
-        cursor.execute("UPDATE ambulancias SET zona = ? WHERE matricula = ?", (nueva_zona, matricula))
-    if nuevo_modelo:
-        cursor.execute("UPDATE ambulancias SET modelo = ? WHERE matricula = ?", (nuevo_modelo, matricula))
-    if nueva_sirena:
-        cursor.execute("UPDATE ambulancias SET sirena = ? WHERE matricula = ?", (nueva_sirena, matricula))
-    if nuevo_id_centro:
-        cursor.execute("UPDATE ambulancias SET id_centro = ? WHERE matricula = ?", (nuevo_id_centro, matricula))
+    if nueva_zona is not None:
+        cursor.execute(
+            "UPDATE ambulancias SET zona = ? WHERE matricula = ?;",
+            (nueva_zona, matricula)
+        )
+    if nuevo_modelo is not None:
+        cursor.execute(
+            "UPDATE ambulancias SET modelo = ? WHERE matricula = ?;",
+            (nuevo_modelo, matricula)
+        )
+    if nueva_sirena is not None:
+        cursor.execute(
+            "UPDATE ambulancias SET sirena = ? WHERE matricula = ?;",
+            (nueva_sirena, matricula)
+        )
+    if nuevo_id_centro is not None:
+        cursor.execute(
+            "UPDATE ambulancias SET id_centro = ? WHERE matricula = ?;",
+            (nuevo_id_centro, matricula)
+        )
     conn.commit()
     conn.close()
-    print(f"Ambulancia {matricula} actualizada.")
+
 
 def eliminar_ambulancia(matricula: str) -> None:
     """
     Elimina una ambulancia de la base de datos por su matrícula.
 
-    Parametros
+    Parameters
     ----------
     matricula : str
         Matrícula de la ambulancia a eliminar.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM ambulancias WHERE matricula = ?", (matricula,))
+    cursor.execute('DELETE FROM ambulancias WHERE matricula = ?;', (matricula,))
     conn.commit()
     conn.close()
-    print(f"Ambulancia {matricula} eliminada.")
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     crear_tabla_ambulancias()
+
 

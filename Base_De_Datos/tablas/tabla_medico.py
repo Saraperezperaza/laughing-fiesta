@@ -1,138 +1,204 @@
 import sqlite3
-import json
 import os
+from typing import List, Tuple, Optional
 
-# Construir ruta absoluta al fichero de base de datos
-base = os.path.dirname(os.path.dirname(__file__))
-db_path = os.path.join(base, 'base_de_datos.db')
+# Base de datos en la misma carpeta que este script
+_db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bdd.db')
 
 def conectar() -> sqlite3.Connection:
     """
     Establece una conexión con la base de datos SQLite.
 
-    Devuelve
-    --------
+    Returns
+    -------
     sqlite3.Connection
         Conexión activa al archivo de base de datos.
     """
-    conn = sqlite3.connect(db_path)
-    # Habilitar claves foráneas
+    conn = sqlite3.connect(_db_path)
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
+
 def crear_tabla_medicos() -> None:
     """
-    Crea la tabla 'medicos' con herencia real desde 'trabajadores'.
+    Crea la tabla 'medicos' en la base de datos si no existe.
 
-    Contiene solo la información adicional de los médicos,
-    como credenciales de acceso y especialización médica.
+    La tabla contiene los siguientes campos:
+    - id : TEXT
+        Identificador único del médico (clave primaria).
+    - username : TEXT
+        Nombre de usuario único para el médico.
+    - password : TEXT
+        Contraseña del médico.
+    - especialidad : TEXT
+        Especialidad médica.
+    - antiguedad : INTEGER
+        Años de experiencia.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute(
+        '''
         CREATE TABLE IF NOT EXISTS medicos (
             id TEXT PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
+            username TEXT NOT NULL UNIQUE,
             password TEXT NOT NULL,
             especialidad TEXT NOT NULL,
-            antiguedad INTEGER NOT NULL,
-            FOREIGN KEY (id) REFERENCES trabajadores(id) ON DELETE CASCADE
-        )
-    ''')
+            antiguedad INTEGER NOT NULL
+        );
+        '''
+    )
     conn.commit()
     conn.close()
-    print("Tabla 'medicos' creada correctamente.")
+
 
 def insertar_medico(
-    id: str, username: str, password: str,
-    especialidad: str, antiguedad: int
+    medico_id: str,
+    username: str,
+    password: str,
+    especialidad: str,
+    antiguedad: int
 ) -> None:
     """
     Inserta un nuevo médico en la tabla 'medicos'.
 
-    La persona y el trabajador deben haberse registrado antes en las tablas correspondientes.
-
-    Parámetros
+    Parameters
     ----------
-    id : str
-        Identificador del médico (ya debe existir en 'trabajadores').
+    medico_id : str
+        Identificador único del médico.
     username : str
-        Nombre de usuario único del médico.
+        Nombre de usuario único.
     password : str
-        Contraseña del médico.
+        Contraseña.
     especialidad : str
-        Especialidad médica del profesional.
+        Especialidad médica.
     antiguedad : int
-        Años de experiencia del médico.
+        Años de experiencia.
+
+    Raises
+    ------
+    ValueError
+        Si la inserción viola restricciones de integridad.
+
+    Returns
+    -------
+    None
     """
+    conn = conectar()
+    cursor = conn.cursor()
     try:
-        conn = conectar()
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO medicos (
-                id, username, password, especialidad, antiguedad
-            ) VALUES (?, ?, ?, ?, ?)
-        ''', (id, username, password, especialidad, antiguedad))
+        cursor.execute(
+            "INSERT INTO medicos (id, username, password, especialidad, antiguedad) VALUES (?, ?, ?, ?, ?);",
+            (medico_id, username, password, especialidad, antiguedad)
+        )
         conn.commit()
-        print(f"Médico con ID '{id}' insertado correctamente.")
-    except sqlite3.IntegrityError:
-        print("Error: ID no existe en trabajadores o username ya está registrado.")
+    except sqlite3.IntegrityError as e:
+        raise ValueError(f"Error de integridad al insertar médico: {e}")
     finally:
         conn.close()
 
-def leer_medicos() -> list:
-    """
-    Recupera todos los médicos registrados junto con sus atributos.
 
-    Devuelve
-    --------
-    list
-        Lista de tuplas con los datos de cada médico.
+def leer_medicos() -> List[Tuple[str, str, str, str, int]]:
+    """
+    Recupera todos los médicos almacenados.
+
+    Returns
+    -------
+    List[Tuple[str, str, str, str, int]]
+        Tuplas con campos:
+        (id, username, password, especialidad, antiguedad).
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM medicos")
-    medicos = cursor.fetchall()
+    cursor.execute(
+        "SELECT id, username, password, especialidad, antiguedad FROM medicos;"
+    )
+    resultados = cursor.fetchall()
     conn.close()
-    return medicos
+    return resultados
 
-def actualizar_medico(id: str, campo: str, nuevo_valor) -> None:
+
+def actualizar_medico(
+    medico_id: str,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    especialidad: Optional[str] = None,
+    antiguedad: Optional[int] = None
+) -> None:
     """
-    Actualiza un campo específico de un médico.
+    Actualiza los datos de un médico existente.
 
-    Parámetros
+    Parameters
     ----------
-    id : str
-        ID del médico que se desea actualizar.
-    campo : str
-        Campo a modificar ('username', 'password', 'especialidad', 'antiguedad').
-    nuevo_valor : str | int
-        Nuevo valor del campo.
+    medico_id : str
+        Identificador del médico a actualizar.
+    username : str, optional
+        Nuevo nombre de usuario.
+    password : str, optional
+        Nueva contraseña.
+    especialidad : str, optional
+        Nueva especialidad.
+    antiguedad : int, optional
+        Nuevos años de experiencia.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    query = f"UPDATE medicos SET {campo} = ? WHERE id = ?"
-    cursor.execute(query, (nuevo_valor, id))
+    if username is not None:
+        cursor.execute(
+            "UPDATE medicos SET username = ? WHERE id = ?;",
+            (username, medico_id)
+        )
+    if password is not None:
+        cursor.execute(
+            "UPDATE medicos SET password = ? WHERE id = ?;",
+            (password, medico_id)
+        )
+    if especialidad is not None:
+        cursor.execute(
+            "UPDATE medicos SET especialidad = ? WHERE id = ?;",
+            (especialidad, medico_id)
+        )
+    if antiguedad is not None:
+        cursor.execute(
+            "UPDATE medicos SET antiguedad = ? WHERE id = ?;",
+            (antiguedad, medico_id)
+        )
     conn.commit()
     conn.close()
-    print(f"Médico {id} actualizado correctamente: {campo} = {nuevo_valor}")
 
-def eliminar_medico(id: str) -> None:
+
+def eliminar_medico(medico_id: str) -> None:
     """
-    Elimina un médico de la tabla 'medicos' por su identificador.
+    Elimina un médico de la base de datos por su identificador.
 
-    Parámetros
+    Parameters
     ----------
-    id : str
-        Identificador del médico.
+    medico_id : str
+        Identificador del médico a eliminar.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM medicos WHERE id = ?", (id,))
+    cursor.execute(
+        "DELETE FROM medicos WHERE id = ?;",
+        (medico_id,)
+    )
     conn.commit()
     conn.close()
-    print(f"Médico {id} eliminado.")
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     crear_tabla_medicos()
+
 

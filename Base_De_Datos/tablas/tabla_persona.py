@@ -1,25 +1,14 @@
 import sqlite3
-import json
 import os
 
-# Construir ruta absoluta al fichero de base de datos
-base = os.path.dirname(os.path.dirname(__file__))
-db_path = os.path.join(base, 'base_de_datos.db')
+# 1. Construir ruta absoluta al fichero de base de datos
+db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bdd.db')
 
 def conectar() -> sqlite3.Connection:
-    """
-    Establece una conexión con la base de datos SQLite.
-
-    Devuelve
-    --------
-    sqlite3.Connection
-        Conexión activa al archivo de base de datos.
-    """
+    print(f"[DEBUG] Conectando a: {db_path}")
     conn = sqlite3.connect(db_path)
-    # Habilitar claves foráneas
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
-
 def crear_tabla_personas() -> None:
     """
     Crea la tabla 'personas' en la base de datos si no existe.
@@ -42,7 +31,6 @@ def crear_tabla_personas() -> None:
     conn.commit()
     conn.close()
     print("Tabla 'personas' creada correctamente.")
-
 def insertar_persona(id: str, nombre: str, apellido: str, edad: int,
                      genero: str, password_hash: str, rol: str) -> None:
     """

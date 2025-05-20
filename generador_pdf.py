@@ -15,7 +15,7 @@ def generar_pdf_paciente(paciente: Paciente) -> str:
     # Información del paciente
     c.setFont("Helvetica", 12)
     y = height - 100
-    c.drawString(100, y, f"Nombre: {paciente._nombre}")
+    c.drawString(100, y, f"Nombre: {paciente.nombre}")
     y -= 20
     c.drawString(100, y, f"Edad: {paciente.edad}")
     y -= 20

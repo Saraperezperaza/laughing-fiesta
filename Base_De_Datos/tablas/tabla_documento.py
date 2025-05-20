@@ -1,144 +1,168 @@
 import sqlite3
-import json
 import os
+from typing import List, Tuple
 
-# Construir ruta absoluta al fichero de base de datos
-base = os.path.dirname(os.path.dirname(__file__))
-db_path = os.path.join(base, 'base_de_datos.db')
+# Base de datos en la misma carpeta que este script
+db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bdd.db')
 
 def conectar() -> sqlite3.Connection:
     """
     Establece una conexión con la base de datos SQLite.
 
-    Devuelve
-    --------
+    Returns
+    -------
     sqlite3.Connection
         Conexión activa al archivo de base de datos.
     """
     conn = sqlite3.connect(db_path)
-    # Habilitar claves foráneas
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
-def crear_tabla_documentos():
-    """
-    Crea la tabla 'documentos' si no existe ya en la base de datos.
 
-    La tabla incluye los siguientes campos:
-    - id: clave primaria del documento.
-    - titulo: título del documento.
-    - descripcion: contenido o resumen del documento.
-    - urgente: indicador booleano de urgencia.
-    - prioridad: nivel de prioridad (0: normal, 1: urgente).
-    - id_secretario: clave foránea que relaciona el documento con un secretario.
+def crear_tabla_documentos() -> None:
+    """
+    Crea la tabla 'documentos' en la base de datos si no existe.
+
+    La tabla contiene los siguientes campos:
+    - id : TEXT PRIMARY KEY
+    - titulo : TEXT NOT NULL
+    - descripcion : TEXT NOT NULL
+    - urgente : INTEGER NOT NULL DEFAULT 0
+    - prioridad : INTEGER NOT NULL DEFAULT 0 CHECK(prioridad IN (0, 1))
+    - id_secretario : TEXT
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute(
+        '''
         CREATE TABLE IF NOT EXISTS documentos (
             id TEXT PRIMARY KEY,
             titulo TEXT NOT NULL,
             descripcion TEXT NOT NULL,
-            urgente BOOLEAN NOT NULL DEFAULT 0,
+            urgente INTEGER NOT NULL DEFAULT 0,
             prioridad INTEGER NOT NULL DEFAULT 0 CHECK (prioridad IN (0, 1)),
             id_secretario TEXT,
-            FOREIGN KEY (id_secretario) REFERENCES secretarios(id)
-        )
-    ''')
+            FOREIGN KEY(id_secretario) REFERENCES secretarios(id) ON DELETE SET NULL
+        );
+        '''
+    )
     conn.commit()
     conn.close()
-    print("Tabla 'documentos' creada correctamente.")
+
 
 def insertar_documento(
-    id: str,
+    doc_id: str,
     titulo: str,
     descripcion: str,
     urgente: bool = False,
     prioridad: int = 0
-):
+) -> None:
     """
-    Inserta un nuevo documento en la tabla.
+    Inserta un nuevo documento en la tabla 'documentos'.
 
-    Parámetros
+    Parameters
     ----------
-    id : str
+    doc_id : str
         Identificador único del documento.
     titulo : str
         Título del documento.
     descripcion : str
         Descripción o contenido del documento.
-    urgente : bool, opcional
-        Si el documento es urgente (por defecto False).
-    prioridad : int, opcional
-        Nivel de prioridad (0: normal, 1: urgente).
+    urgente : bool, optional
+        Indicador de urgencia; por defecto False.
+    prioridad : int, optional
+        Nivel de prioridad (0: normal, 1: urgente); por defecto 0.
+
+    Raises
+    ------
+    ValueError
+        Si la inserción viola restricciones de integridad.
+
+    Returns
+    -------
+    None
     """
+    conn = conectar()
+    cursor = conn.cursor()
     try:
-        conn = conectar()
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO documentos (
-                id, titulo, descripcion, urgente, prioridad
-            ) VALUES (?, ?, ?, ?, ?)
-        ''', (id, titulo, descripcion, int(urgente), prioridad))
+        cursor.execute(
+            "INSERT INTO documentos (id, titulo, descripcion, urgente, prioridad) VALUES (?, ?, ?, ?, ?);",
+            (doc_id, titulo, descripcion, int(urgente), prioridad)
+        )
         conn.commit()
-        print(f"Documento '{titulo}' insertado correctamente.")
-    except sqlite3.IntegrityError:
-        print("Error: El ID ya existe.")
+    except sqlite3.IntegrityError as e:
+        raise ValueError(f"Error de integridad al insertar documento: {e}")
     finally:
         conn.close()
 
-def leer_documentos():
+
+def leer_documentos() -> List[Tuple[str, str, str, int, int, str]]:
     """
     Recupera todos los documentos almacenados en la base de datos.
 
-    Devuelve
-    --------
-    Lista
-        Lista con todas las filas de la tabla 'documentos'.
+    Returns
+    -------
+    List[Tuple[str, str, str, int, int, str]]
+        Tuplas con campos:
+        (id, titulo, descripcion, urgente, prioridad, id_secretario).
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM documentos")
-    documentos = cursor.fetchall()
+    cursor.execute(
+        "SELECT id, titulo, descripcion, urgente, prioridad, id_secretario FROM documentos;"
+    )
+    resultados = cursor.fetchall()
     conn.close()
-    return documentos
+    return resultados
 
-def marcar_documento_urgente(id: str):
+
+def marcar_documento_urgente(doc_id: str) -> None:
     """
-    Marca un documento como urgente, actualizando sus campos 'urgente' y 'prioridad'.
+    Marca un documento como urgente, actualizando 'urgente' y 'prioridad'.
 
-    Parámetros
+    Parameters
     ----------
-    id : str
+    doc_id : str
         Identificador del documento a actualizar.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE documentos
-        SET urgente = 1, prioridad = 1
-        WHERE id = ?
-    ''', (id,))
+    cursor.execute(
+        "UPDATE documentos SET urgente = 1, prioridad = 1 WHERE id = ?;",
+        (doc_id,)
+    )
     conn.commit()
     conn.close()
-    print(f"Documento {id} marcado como urgente.")
 
-def eliminar_documento(id: str):
+
+def eliminar_documento(doc_id: str) -> None:
     """
-    Elimina un documento de la base de datos según su identificador.
+    Elimina un documento de la base de datos por su identificador.
 
-    Parámetros
+    Parameters
     ----------
-    id : str
-        Identificador del documento a eliminar.
+    doc_id : str
+        Identificador único del documento a eliminar.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM documentos WHERE id = ?", (id,))
+    cursor.execute('DELETE FROM documentos WHERE id = ?;', (doc_id,))
     conn.commit()
     conn.close()
-    print(f"Documento {id} eliminado.")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     crear_tabla_documentos()
+
 

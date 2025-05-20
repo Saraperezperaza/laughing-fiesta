@@ -1,37 +1,50 @@
 import sqlite3
-import json
 import os
+from typing import List, Tuple, Optional
 
-# Construir ruta absoluta al fichero de base de datos
-base = os.path.dirname(os.path.dirname(__file__))
-db_path = os.path.join(base, 'base_de_datos.db')
+# Base de datos en la misma carpeta que este script
+db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bdd.db')
 
 def conectar() -> sqlite3.Connection:
     """
     Establece una conexión con la base de datos SQLite.
 
-    Devuelve
-    --------
+    Returns
+    -------
     sqlite3.Connection
         Conexión activa al archivo de base de datos.
     """
     conn = sqlite3.connect(db_path)
-    # Habilitar claves foráneas
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
 
-def crear_tabla_centros():
+def crear_tabla_centros() -> None:
     """
-    Crea la tabla 'centros' si no existe ya en la base de datos.
+    Crea la tabla 'centros' en la base de datos si no existe.
 
-    La tabla incluye una clave foránea 'id_provincia' que enlaza con la tabla 'provincias',
-    simulando así una relación de herencia lógica.
+    La tabla contiene los siguientes campos:
+    - id_centro : str
+        Identificador único del centro, clave primaria.
+    - nombre_centro : str
+        Nombre del centro médico.
+    - cantidad_trabajadores : int
+        Número de trabajadores en el centro.
+    - presupuesto : float
+        Presupuesto asignado al centro.
+    - habitaciones : int
+        Número de habitaciones disponibles.
+    - id_provincia : int
+        Identificador de la provincia asociada.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute('PRAGMA foreign_keys = ON;')
-    cursor.execute('''
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS centros (
             id_centro TEXT PRIMARY KEY,
             nombre_centro TEXT NOT NULL,
@@ -39,20 +52,27 @@ def crear_tabla_centros():
             presupuesto REAL NOT NULL,
             habitaciones INTEGER NOT NULL,
             id_provincia INTEGER NOT NULL,
-            FOREIGN KEY (id_provincia) REFERENCES provincias(id)
-        )
-    ''')
+            id_ambulancia TEXT NOT NULL,
+            FOREIGN KEY(id_ambulancia) REFERENCES ambulancias(matricula) ON DELETE SET NULL
+        );
+        """
+    )
     conn.commit()
     conn.close()
-    print("Tabla 'centros' creada correctamente.")
 
 
-def insertar_centro(id_centro: str, nombre_centro: str, cantidad_trabajadores: int,
-                    presupuesto: float, habitaciones: int, id_provincia: int) -> None:
+def insertar_centro(
+    id_centro: str,
+    nombre_centro: str,
+    cantidad_trabajadores: int,
+    presupuesto: float,
+    habitaciones: int,
+    id_provincia: int
+) -> None:
     """
-    Inserta un nuevo centro médico en la base de datos.
+    Inserta un nuevo centro en la tabla 'centros'.
 
-    Parámetros
+    Parameters
     ----------
     id_centro : str
         Identificador único del centro.
@@ -61,94 +81,134 @@ def insertar_centro(id_centro: str, nombre_centro: str, cantidad_trabajadores: i
     cantidad_trabajadores : int
         Número de trabajadores en el centro.
     presupuesto : float
-        Presupuesto asignado.
+        Presupuesto asignado al centro.
     habitaciones : int
         Número de habitaciones disponibles.
     id_provincia : int
-        Identificador de la provincia relacionada.
+        Identificador de la provincia asociada.
+
+    Raises
+    ------
+    ValueError
+        Si la inserción viola restricciones de integridad.
+
+    Returns
+    -------
+    None
     """
+    conn = conectar()
+    cursor = conn.cursor()
     try:
-        conn = conectar()
-        cursor = conn.cursor()
-        cursor.execute('PRAGMA foreign_keys = ON;')
-        cursor.execute('''
-            INSERT INTO centros (
-                id_centro, nombre_centro, cantidad_trabajadores, presupuesto, habitaciones, id_provincia
-            ) VALUES (?, ?, ?, ?, ?, ?)
-        ''', (id_centro, nombre_centro, cantidad_trabajadores, presupuesto, habitaciones, id_provincia))
+        cursor.execute(
+            "INSERT INTO centros (id_centro, nombre_centro, cantidad_trabajadores, presupuesto, habitaciones, id_provincia) VALUES (?, ?, ?, ?, ?, ?);",
+            (id_centro, nombre_centro, cantidad_trabajadores, presupuesto, habitaciones, id_provincia)
+        )
         conn.commit()
-        print(f"Centro '{nombre_centro}' insertado correctamente.")
-    except sqlite3.IntegrityError:
-        print("Error: el ID ya existe o la provincia no es válida.")
+    except sqlite3.IntegrityError as e:
+        raise ValueError(f"Error de integridad al insertar centro: {e}")
     finally:
         conn.close()
 
 
-def leer_centros() -> list[tuple]:
+def leer_centros() -> List[Tuple[str, str, int, float, int, int]]:
     """
     Recupera todos los registros de la tabla 'centros'.
 
-    Devuelve
-    --------
-    list of tuple
-        Lista de tuplas con los datos de todos los centros médicos.
+    Returns
+    -------
+    List[Tuple[str, str, int, float, int, int]]
+        Tuplas con campos:
+        (id_centro, nombre_centro, cantidad_trabajadores, presupuesto, habitaciones, id_provincia).
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM centros")
-    centros = cursor.fetchall()
+    cursor.execute(
+        "SELECT id_centro, nombre_centro, cantidad_trabajadores, presupuesto, habitaciones, id_provincia FROM centros;"
+    )
+    resultados = cursor.fetchall()
     conn.close()
-    return centros
+    return resultados
 
 
-def actualizar_centro(id_centro: str, nuevo_nombre: str = None, nuevos_trabajadores: int = None,
-                      nuevo_presupuesto: float = None, nueva_provincia: int = None) -> None:
+def actualizar_centro(
+    id_centro: str,
+    nombre_centro: Optional[str] = None,
+    cantidad_trabajadores: Optional[int] = None,
+    presupuesto: Optional[float] = None,
+    habitaciones: Optional[int] = None,
+    id_provincia: Optional[int] = None
+) -> None:
     """
-    Actualiza la información de un centro médico existente.
+    Actualiza los datos de un centro existente.
 
-    Parámetros
+    Parameters
     ----------
     id_centro : str
-        ID del centro a modificar.
-    nuevo_nombre : str, opcional
+        Identificador del centro a actualizar.
+    nombre_centro : Optional[str]
         Nuevo nombre del centro.
-    nuevos_trabajadores : int, opcional
+    cantidad_trabajadores : Optional[int]
         Nueva cantidad de trabajadores.
-    nuevo_presupuesto : float, opcional
-        Nuevo presupuesto.
-    nueva_provincia : int, opcional
-        Nuevo ID de provincia al que se asigna el centro.
+    presupuesto : Optional[float]
+        Nuevo presupuesto asignado.
+    habitaciones : Optional[int]
+        Nuevo número de habitaciones.
+    id_provincia : Optional[int]
+        Nuevo identificador de provincia.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    if nuevo_nombre:
-        cursor.execute("UPDATE centros SET nombre_centro = ? WHERE id_centro = ?", (nuevo_nombre, id_centro))
-    if nuevos_trabajadores:
-        cursor.execute("UPDATE centros SET cantidad_trabajadores = ? WHERE id_centro = ?", (nuevos_trabajadores, id_centro))
-    if nuevo_presupuesto:
-        cursor.execute("UPDATE centros SET presupuesto = ? WHERE id_centro = ?", (nuevo_presupuesto, id_centro))
-    if nueva_provincia:
-        cursor.execute("UPDATE centros SET id_provincia = ? WHERE id_centro = ?", (nueva_provincia, id_centro))
+    if nombre_centro is not None:
+        cursor.execute(
+            "UPDATE centros SET nombre_centro = ? WHERE id_centro = ?;",
+            (nombre_centro, id_centro)
+        )
+    if cantidad_trabajadores is not None:
+        cursor.execute(
+            "UPDATE centros SET cantidad_trabajadores = ? WHERE id_centro = ?;",
+            (cantidad_trabajadores, id_centro)
+        )
+    if presupuesto is not None:
+        cursor.execute(
+            "UPDATE centros SET presupuesto = ? WHERE id_centro = ?;",
+            (presupuesto, id_centro)
+        )
+    if habitaciones is not None:
+        cursor.execute(
+            "UPDATE centros SET habitaciones = ? WHERE id_centro = ?;",
+            (habitaciones, id_centro)
+        )
+    if id_provincia is not None:
+        cursor.execute(
+            "UPDATE centros SET id_provincia = ? WHERE id_centro = ?;",
+            (id_provincia, id_centro)
+        )
     conn.commit()
     conn.close()
-    print(f"Centro {id_centro} actualizado correctamente.")
 
 
 def eliminar_centro(id_centro: str) -> None:
     """
-    Elimina un centro de la base de datos.
+    Elimina un centro de la base de datos por su identificador.
 
-    Parámetros
+    Parameters
     ----------
     id_centro : str
-        Identificador único del centro a eliminar.
+        Identificador del centro a eliminar.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM centros WHERE id_centro = ?", (id_centro,))
+    cursor.execute('DELETE FROM centros WHERE id_centro = ?;', (id_centro,))
     conn.commit()
     conn.close()
-    print(f"Centro {id_centro} eliminado correctamente.")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     crear_tabla_centros()

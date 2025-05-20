@@ -1,110 +1,140 @@
 import sqlite3
-import json
 import os
+from typing import List, Tuple
 
-# Construir ruta absoluta al fichero de base de datos
-base = os.path.dirname(os.path.dirname(__file__))
-db_path = os.path.join(base, 'base_de_datos.db')
+# Base de datos en la misma carpeta que este script
+_db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bdd.db')
 
 def conectar() -> sqlite3.Connection:
     """
     Establece una conexión con la base de datos SQLite.
 
-    Devuelve
-    --------
+    Returns
+    -------
     sqlite3.Connection
         Conexión activa al archivo de base de datos.
     """
-    conn = sqlite3.connect(db_path)
-    # Habilitar claves foráneas
+    conn = sqlite3.connect(_db_path)
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
 
 def crear_tabla_provincias() -> None:
     """
-    Crea la tabla 'provincias' si no existe en la base de datos.
+    Crea la tabla 'provincias' en la base de datos si no existe.
 
-    La tabla almacena información sobre provincias, incluyendo
-    el nombre de la comunidad a la que pertenece y su presupuesto.
+    La tabla contiene los siguientes campos:
+    - id : int
+        Identificador único autoincremental (clave primaria).
+    - nombre_comunidad : str
+        Nombre de la comunidad autónoma.
+    - nombre_provincia : str
+        Nombre de la provincia (único).
+    - presupuesto : float
+        Presupuesto asignado; por defecto 0.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute('''
+    cursor.execute(
+        '''
         CREATE TABLE IF NOT EXISTS provincias (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre_comunidad TEXT NOT NULL,
             nombre_provincia TEXT NOT NULL UNIQUE,
-            presupuesto REAL DEFAULT 0
-        )
-    ''')
+            presupuesto REAL NOT NULL DEFAULT 0
+        );
+        '''
+    )
     conn.commit()
     conn.close()
-    print("Tabla 'provincias' creada correctamente.")
 
 
-def insertar_provincia(nombre_comunidad: str, nombre_provincia: str, presupuesto: float = 0) -> None:
+def insertar_provincia(
+    nombre_comunidad: str,
+    nombre_provincia: str,
+    presupuesto: float = 0
+) -> None:
     """
-    Inserta una nueva provincia en la tabla.
+    Inserta una nueva provincia en la tabla 'provincias'.
 
-    Parámetros
+    Parameters
     ----------
     nombre_comunidad : str
-        Nombre de la comunidad autónoma a la que pertenece la provincia.
+        Nombre de la comunidad autónoma.
     nombre_provincia : str
-        Nombre de la provincia que se desea registrar.
-    presupuesto : float, opcional
-        Presupuesto inicial asignado a la provincia. Por defecto es 0.
+        Nombre de la provincia (debe ser único).
+    presupuesto : float, optional
+        Presupuesto inicial; por defecto 0.
+
+    Raises
+    ------
+    ValueError
+        Si la inserción viola restricciones de integridad.
+
+    Returns
+    -------
+    None
     """
+    conn = conectar()
+    cursor = conn.cursor()
     try:
-        conn = conectar()
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO provincias (
-                nombre_comunidad, nombre_provincia, presupuesto
-            ) VALUES (?, ?, ?)
-        ''', (nombre_comunidad, nombre_provincia, presupuesto))
+        cursor.execute(
+            "INSERT INTO provincias (nombre_comunidad, nombre_provincia, presupuesto) VALUES (?, ?, ?);",
+            (nombre_comunidad, nombre_provincia, presupuesto)
+        )
         conn.commit()
-        print(f"Provincia '{nombre_provincia}' insertada correctamente.")
-    except sqlite3.IntegrityError:
-        print("Error: La provincia ya está registrada.")
+    except sqlite3.IntegrityError as e:
+        raise ValueError(f"Error de integridad al insertar provincia: {e}")
     finally:
         conn.close()
 
 
-def leer_provincias() -> list:
+def leer_provincias() -> List[Tuple[int, str, str, float]]:
     """
-    Recupera todas las provincias almacenadas en la tabla.
+    Recupera todas las provincias almacenadas.
 
-    Devuelve
-    --------
-    list
-        Lista de tuplas con la información de cada provincia.
+    Returns
+    -------
+    List[Tuple[int, str, str, float]]
+        Tuplas con campos:
+        (id, nombre_comunidad, nombre_provincia, presupuesto).
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM provincias")
-    provincias = cursor.fetchall()
+    cursor.execute(
+        "SELECT id, nombre_comunidad, nombre_provincia, presupuesto FROM provincias;"
+    )
+    resultados = cursor.fetchall()
     conn.close()
-    return provincias
+    return resultados
 
 
 def eliminar_provincia(nombre_provincia: str) -> None:
     """
     Elimina una provincia de la base de datos por su nombre.
 
-    Parámetros
+    Parameters
     ----------
     nombre_provincia : str
-        Nombre de la provincia que se desea eliminar.
+        Nombre de la provincia a eliminar.
+
+    Returns
+    -------
+    None
     """
     conn = conectar()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM provincias WHERE nombre_provincia = ?", (nombre_provincia,))
+    cursor.execute(
+        "DELETE FROM provincias WHERE nombre_provincia = ?;",
+        (nombre_provincia,)
+    )
     conn.commit()
     conn.close()
-    print(f"Provincia '{nombre_provincia}' eliminada.")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     crear_tabla_provincias()
