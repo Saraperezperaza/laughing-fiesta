@@ -18,6 +18,7 @@ import requests
 import uuid
 import sqlite3
 import os
+from werkzeug.security import generate_password_hash, check_password_hash # Importar para hashing
 
 # Importar módulos de BD
 from Base_De_Datos.tablas.tabla_SIPS import crear_tabla_sip, insertar_sip, leer_sip, eliminar_sip
@@ -82,7 +83,7 @@ def requiere_autenticacion(f):
         # Extraer rol del header
         rol = request.headers.get('X-ROL')
         user = auth.username
-        pwd  = auth.password
+        pwd  = auth.password # Contraseña en texto plano enviada por el cliente
         # Validar según rol consultando BD
         if rol == 'paciente':
             filas = leer_pacientes()
@@ -96,14 +97,20 @@ def requiere_autenticacion(f):
         else:
             return jsonify({"detail": "Rol no reconocido."}), 403
         registro = users.get(user)
-        if not registro or registro[2] != pwd:
+        # Verificar la contraseña usando check_password_hash
+        # registro[2] es la contraseña hasheada almacenada en la BD
+        if not registro or not check_password_hash(registro[2], pwd):
             return jsonify({"detail": "Credenciales inválidas."}), 401
+
         # Usuario autenticado
-        class U: pass
+        class U:
+            pass
+
         usuario = U()
-        usuario.id = registro[0]
+        usuario.id = registro  # Asumiendo que el ID está en la posición 0
         usuario.rol = rol
         return f(usuario, *args, **kwargs)
+
     return deco
 
 # === Endpoints básicos ===
@@ -165,7 +172,7 @@ def menu(usuario):
         JSON con lista de opciones.
     """
     if usuario.rol == 'paciente':
-        opciones = ["Ver info", "Pedir cita", "Descargar PDF", "Recomendar medicamento"]
+        opciones = ["Ver info", "Pedir cita", "Descargar PDF", "Recomendación de medicamento"]
     elif usuario.rol == 'medico':
         opciones = ["Listar pacientes", "Ver citas", "Historial médico"]
     elif usuario.rol == 'enfermero':
@@ -272,10 +279,12 @@ def alta_paciente():
     """
     d = request.json
     try:
+        # Hashear la contraseña antes de insertarla
+        hashed_password = generate_password_hash(d['password'], method='pbkdf2:sha256', salt_length=16)
         insertar_paciente(
             paciente_id = d['id'],
             username = d['username'],
-            password = d['password'],
+            password = hashed_password, # Almacenar el hash,
             nombre = d['nombre'],
             apellido = d['apellido'],
             edad = d['edad'],
@@ -305,7 +314,7 @@ def baja_paciente(paciente_id:str):
     Response
         Mensaje de confirmación o error.
     """
-    ids = {r[0] for r in leer_pacientes()}
+    ids = {r for r in leer_pacientes()} # Asegúrate de que leer_pacientes devuelve una lista de tuplas donde el ID es el primer elemento
     if paciente_id not in ids:
         return jsonify({"error":"Paciente no existe."}), 404
     eliminar_paciente(paciente_id)
@@ -347,10 +356,12 @@ def alta_medico():
     if 'especialidad' not in d or 'antiguedad' not in d:
         return jsonify({"error": "Debe indicar 'especialidad' y 'antiguedad'."}), 400
     try:
+        # Hashear la contraseña antes de insertarla
+        hashed_password = generate_password_hash(d['password'], method='pbkdf2:sha256', salt_length=16)
         insertar_medico(
             medico_id    = d['id'],
             username     = d['username'],
-            password     = d['password'],
+            password     = hashed_password, # Almacenar el hash,
             especialidad = d['especialidad'],
             antiguedad   = int(d['antiguedad'])
         )
@@ -415,10 +426,12 @@ def alta_enfermero():
     if 'username' not in d or 'password' not in d:
         return jsonify({"error": "Debe indicar 'username' y 'password'."}), 400
     try:
+        # Hashear la contraseña antes de insertarla
+        hashed_password = generate_password_hash(d['password'], method='pbkdf2:sha256', salt_length=16)
         insertar_enfermero(
             enfermero_id = d['id'],
             username     = d['username'],
-            password     = d['password'],
+            password     = hashed_password, # Almacenar el hash,
             antiguedad =  (d['antieguedad']),
             especialidad = d['especialidad']
         )
