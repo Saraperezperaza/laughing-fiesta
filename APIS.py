@@ -640,7 +640,7 @@ def register_enfermero():
         return jsonify({"detail": "No se proporcionaron datos de registro."}), 400
     username = None
     password = None
-    antieguedad = None
+    antiguedad = None
     especialidad = None
     id = None
     hashed_password = None
@@ -652,7 +652,7 @@ def register_enfermero():
         antieguedad = data.get("antieguedad")
         especialidad = data.get("especialidad")
         id = data.get("id")
-        if not all([username, password, antieguedad, especialidad, id]):
+        if not all([username, password, antiguedad, especialidad, id]):
             return jsonify({"detail": "Todos los campos son obligatorios."}), 400
         existing_user = db.query(EnfermeroDB).filter(EnfermeroDB.username == username).first()
         if existing_user:
