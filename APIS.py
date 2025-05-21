@@ -19,6 +19,8 @@ import uuid
 import sqlite3
 import os
 from werkzeug.security import generate_password_hash, check_password_hash # Importar para hashing
+from datetime import datetime
+
 
 # Importar módulos de BD
 from Base_De_Datos.tablas.tabla_SIPS import crear_tabla_sip, insertar_sip, leer_sip, eliminar_sip
@@ -30,6 +32,8 @@ from Base_De_Datos.tablas.tabla_auxiliar import crear_tabla_auxiliares, insertar
 
 # Importar utilidades externas
 from generador_pdf import generar_pdf_paciente
+import gestor_de_citas
+from gestor_de_citas import CitaPresencial, CitaTelefonica, CitaUrgencias
 
 # Configuración RxNorm
 RXNORM_URL = "https://rxnav.nlm.nih.gov/REST/drugs.json"
@@ -172,11 +176,46 @@ def menu(usuario):
         JSON con lista de opciones.
     """
     if usuario.rol == 'paciente':
-        opciones = ["Ver info", "Pedir cita", "Descargar PDF", "Recomendación de medicamento"]
+        opciones = [
+        "Pedir cita",
+        "Descargar PDF de mi informe",
+        "Buscar información de medicamento por nombre",
+        "Ver información de mi SIP"
+    ]
     elif usuario.rol == 'medico':
-        opciones = ["Listar pacientes", "Ver citas", "Historial médico"]
+        opciones = [
+        "Listar pacientes",
+        "Listar médicos",
+        "Listar enfermeros",
+        "Listar auxiliares",
+        "Dar de alta paciente",
+        "Dar de baja paciente",
+        "Dar de alta médico",
+        "Dar de baja médico",
+        "Dar de alta enfermero",
+        "Dar de baja enfermero",
+        "Dar de alta auxiliar",
+        "Dar de baja auxiliar",
+        "Asignar médico a paciente",
+        "Asignar habitación a paciente",
+        "Crear SIP para paciente",
+        "Consultar SIP de paciente",
+        "Eliminar SIP de paciente"
+    ]
     elif usuario.rol == 'enfermero':
-        opciones = ["Ver habitaciones", "Asignar paciente", "Limpiar habitación"]
+        opciones = [
+        "Listar pacientes",
+        "Listar enfermeros",
+        "Listar habitaciones",
+        "Listar auxiliares",
+        "Dar de alta enfermero",
+        "Dar de baja enfermero",
+        "Dar de alta auxiliar",
+        "Dar de baja auxiliar",
+        "Dar de alta habitación",
+        "Dar de baja habitación",
+        "Limpiar habitación"
+    ]
     else:
         opciones = []
     return jsonify({"rol": usuario.rol, "menu": opciones})
@@ -320,6 +359,61 @@ def baja_paciente(paciente_id:str):
     eliminar_paciente(paciente_id)
     return jsonify({"mensaje":"Paciente eliminado."})
 
+@app.route("/cita/pedir", methods=["POST"])
+def pedir_cita():
+    """
+    Permite al paciente autenticado solicitar una nueva cita.
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({"detail": "No se proporcionaron datos en la solicitud."}), 400
+
+    tipo_cita = data.get("tipo_cita")
+    fecha_hora_str = data.get("fecha_hora")
+    medico_asignado = data.get("medico", "Sin asignar")
+    motivo = data.get("motivo", "")
+    username_paciente = request.authorization.username
+
+    if not tipo_cita or not fecha_hora_str:
+        return jsonify({"detail": "Debes especificar el tipo de cita y la fecha/hora."}), 400
+
+    try:
+        fecha_hora_dt = datetime.strptime(fecha_hora_str, '%Y-%m-%dT%H:%M:%S') # Espera formato ISO
+        fecha_hora_fmt_gestor = fecha_hora_dt.strftime('%Y %m %d %H:%M') # Formato para tu clase Cita
+    except ValueError:
+        return jsonify({"detail": "Formato de fecha/hora inválido. Usa YYYY-MM-DDTHH:MM:SS"}), 400
+
+    paciente_obj = data.get(username_paciente)
+    if not paciente_obj:
+        return jsonify({"detail": f"Paciente con username {username_paciente} no encontrado."}), 404
+
+    id_cita = str(uuid.uuid4())
+
+    nueva_cita = None
+    if tipo_cita == "presencial":
+        centro = data.get("centro")
+        if not centro:
+            return jsonify({"detail": "Para cita presencial, se requiere el centro."}), 400
+        nueva_cita = CitaPresencial(id_cita, paciente_obj, medico_asignado, fecha_hora_fmt_gestor, centro=centro, motivo=motivo)
+    elif tipo_cita == "telefonica":
+        telefono_contacto = data.get("telefono_contacto")
+        if not telefono_contacto:
+            return jsonify({"detail": "Para cita telefónica, se requiere el teléfono de contacto."}), 400
+        nueva_cita = CitaTelefonica(id_cita, paciente_obj, medico_asignado, fecha_hora_fmt_gestor, telefono_contacto=telefono_contacto, motivo=motivo)
+    elif tipo_cita == "urgencias":
+        nivel_prioridad = data.get("nivel_prioridad")
+        if not nivel_prioridad:
+            return jsonify({"detail": "Para cita de urgencias, se requiere el nivel de prioridad."}), 400
+        nueva_cita = CitaUrgencias(id_cita, paciente_obj, medico_asignado, fecha_hora_fmt_gestor, nivel_prioridad=nivel_prioridad, motivo=motivo)
+    else:
+        return jsonify({"detail": "Tipo de cita no válido. Opciones: presencial, telefonica, urgencias."}), 400
+
+    if nueva_cita:
+        gestor_de_citas.anadir_cita(nueva_cita)
+        return jsonify({"mensaje": f"Tu solicitud de cita {tipo_cita} ha sido registrada con ID: {id_cita}.", "id_cita": id_cita}), 201
+    else:
+        return jsonify({"detail": "Error al crear la cita."}), 500
+
 # === Médicos CRUD ===
 @app.route('/medicos', methods=['GET'])
 def listar_medicos():
@@ -389,6 +483,13 @@ def baja_medico(medico_id):
         return jsonify({"error":"Médico no existe."}), 404
     eliminar_medico(medico_id)
     return jsonify({"mensaje":"Médico eliminado."})
+@app.route("/citas", methods=["GET"])
+def listar_citas():
+    """
+    Lista todas las citas gestionadas por el GestorCitas.
+    """
+    citas = gestor_de_citas.mostrar_citas()
+    return jsonify(citas)
 
 # === Enfermeros CRUD ===
 @app.route('/enfermeros', methods=['GET'])
@@ -412,8 +513,7 @@ def alta_enfermero():
     Registra un nuevo enfermero.
 
     Parameters
-    ----------
-    JSON body:
+    ---------    JSON body:
       - id, username, password
 
     Returns
