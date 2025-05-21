@@ -513,7 +513,7 @@ def main():
     """
     Función principal de la aplicación CLI.
     """
-    global GLOBAL_USERNAME
+    global GLOBAL_USERNAME, GLOBAL_PASSWORD, GLOBAL_ROLE
     while True:
         if GLOBAL_USERNAME is None:  # No logueado
             print("\n--- Bienvenid@ la Aplicación Hospitalaria de ProSalud ---")
