@@ -22,7 +22,9 @@ from werkzeug.security import generate_password_hash, check_password_hash  # Imp
 from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
+
+Base = declarative_base()
 from sqlalchemy import Column, Integer, String
 
 # Importar módulos de BD
@@ -37,7 +39,7 @@ from Base_De_Datos.tablas.tabla_auxiliar import crear_tabla_auxiliares, insertar
 from generador_pdf import generar_pdf_paciente
 import gestor_de_citas
 from gestor_de_citas import CitaPresencial, CitaTelefonica, CitaUrgencias
-from tablas.models import PacienteDB, MedicoDB, EnfermeroDB
+from Base_De_Datos.tablas.modelos import PacienteDB, MedicoDB, EnfermeroDB  # Importación corregida
 # Configuración RxNorm
 RXNORM_URL = "https://rxnav.nlm.nih.gov/REST/drugs.json"
 
@@ -54,7 +56,7 @@ def get_db():
         yield db
     finally:
         db.close()
-# Crear tablas al inicio
+# Crear tablas al inicio (Comentado para usar SQLAlchemy si los modelos están definidos)
 # crear_tabla_sip()
 # crear_tabla_pacientes()
 # crear_tabla_medicos()
@@ -77,96 +79,50 @@ def _conectar_bd():
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
-
 # Autenticación
 def requiere_autenticacion(f):
-    """
-        Decorador de autenticación HTTP básica con rol en cabecera 'X-ROL'.
-
-        Parameters
-        ----------
-        f : Callable
-            Vista de Flask a proteger.
-
-        Returns
-        -------
-        Callable
-            Función decorada que recibe usuario autenticado.
-        """
     @wraps(f)
     def deco(*args, **kwargs):
         auth = request.authorization
         if not auth or not auth.username or not auth.password:
             return jsonify({"detail": "Autenticación requerida."}), 401
-        # Extraer rol del header
         rol = request.headers.get('X-ROL')
         user = auth.username
-        pwd  = auth.password # Contraseña en texto plano enviada por el cliente
-        # Validar según rol consultando BD
+        pwd = auth.password
+        db = next(get_db())
+        registro = None
         if rol == 'paciente':
-            filas = leer_pacientes()
-            users = {r[1]: r for r in filas}  # username->row
+            registro = db.query(PacienteDB).filter(PacienteDB.username == user).first()
         elif rol == 'medico':
-            filas = leer_medicos()
-            users = {r[1]: r for r in filas}
+            registro = db.query(MedicoDB).filter(MedicoDB.username == user).first()
         elif rol == 'enfermero':
-            filas = leer_enfermeros()
-            users = {r[1]: r for r in filas}
+            registro = db.query(EnfermeroDB).filter(EnfermeroDB.username == user).first()
         else:
             return jsonify({"detail": "Rol no reconocido."}), 403
-        registro = users.get(user)
-        # Verificar la contraseña usando check_password_hash
-        # registro[2] es la contraseña hasheada almacenada en la BD
-        if not registro or not check_password_hash(registro[2], pwd):
+
+        if not registro or not check_password_hash(registro.password, pwd):
             return jsonify({"detail": "Credenciales inválidas."}), 401
 
-        # Usuario autenticado
         class U:
             pass
-
         usuario = U()
-        usuario.id = registro  # Asumiendo que el ID está en la posición 0
+        usuario.id = registro.id
         usuario.rol = rol
         return f(usuario, *args, **kwargs)
-
     return deco
 
 # === Endpoints básicos ===
 @app.route('/')
 def home():
-    """
-    Verifica que la API está en línea.
-
-    Returns
-    -------
-    Response
-        Mensaje de estado.
-    """
     return jsonify({"mensaje": "API Salud funcionando."})
 
 @app.route('/test')
 def test():
-    """
-    Endpoint de prueba.
-
-    Returns
-    -------
-    Response
-        Mensaje de confirmación.
-    """
     return jsonify({"mensaje": "Test OK."})
 
 # RxNorm
 @app.route('/medicamento/info', methods=['GET'])
 def info_medicamento():
-    """
-    Consulta la API RxNorm para un medicamento.
-
-    Returns
-    -------
-    Response
-        JSON con datos o error.
-    """
     nombre = request.args.get('name')
     if not nombre:
         return jsonify({"error": "Parámetro 'name' requerido."}), 400
@@ -182,227 +138,123 @@ def info_medicamento():
 @app.route('/menu', methods=['GET'])
 @requiere_autenticacion
 def menu(usuario):
-    """
-    Devuelve opciones de menú según rol.
-    Returns
-    -------
-    Response
-        JSON con lista de opciones.
-    """
+    opciones = []
     if usuario.rol == 'paciente':
-        opciones = [
-        "Pedir cita",
-        "Descargar PDF de mi informe",
-        "Buscar información de medicamento por nombre",
-        "Ver información de mi SIP"
-    ]
+        opciones = ["Pedir cita", "Descargar PDF de mi informe", "Buscar información de medicamento por nombre", "Ver información de mi SIP"]
     elif usuario.rol == 'medico':
-        opciones = [
-        "Listar pacientes",
-        "Listar médicos",
-        "Listar enfermeros",
-        "Listar auxiliares",
-        "Dar de alta paciente",
-        "Dar de baja paciente",
-        "Dar de alta médico",
-        "Dar de baja médico",
-        "Dar de alta enfermero",
-        "Dar de baja enfermero",
-        "Dar de alta auxiliar",
-        "Dar de baja auxiliar",
-        "Asignar médico a paciente",
-        "Asignar habitación a paciente",
-        "Crear SIP para paciente",
-        "Consultar SIP de paciente",
-        "Eliminar SIP de paciente"
-    ]
+        opciones = ["Listar pacientes", "Listar médicos", "Listar enfermeros", "Listar auxiliares", "Dar de alta paciente", "Dar de baja paciente", "Dar de alta médico", "Dar de baja médico", "Dar de alta enfermero", "Dar de baja enfermero", "Dar de alta auxiliar", "Dar de baja auxiliar", "Asignar médico a paciente", "Asignar habitación a paciente", "Crear SIP para paciente", "Consultar SIP de paciente", "Eliminar SIP de paciente"]
     elif usuario.rol == 'enfermero':
-        opciones = [
-        "Listar pacientes",
-        "Listar enfermeros",
-        "Listar habitaciones",
-        "Listar auxiliares",
-        "Dar de alta enfermero",
-        "Dar de baja enfermero",
-        "Dar de alta auxiliar",
-        "Dar de baja auxiliar",
-        "Dar de alta habitación",
-        "Dar de baja habitación",
-        "Limpiar habitación"
-    ]
-    else:
-        opciones = []
+        opciones = ["Listar pacientes", "Listar enfermeros", "Listar habitaciones", "Listar auxiliares", "Dar de alta enfermero", "Dar de baja enfermero", "Dar de alta auxiliar", "Dar de baja auxiliar", "Dar de alta habitación", "Dar de baja habitación", "Limpiar habitación"]
     return jsonify({"rol": usuario.rol, "menu": opciones})
 
 # SIPS
 @app.route('/crear_sip/<paciente_id>', methods=['GET'])
 def crear_sip(paciente_id):
-    """
-    Genera y almacena un SIP para un paciente.
-
-    Parameters
-    ----------
-    paciente_id : str
-        ID del paciente.
-
-    Returns
-    -------
-    Response
-        JSON con SIP o error.
-    """
-    if leer_sip(paciente_id):
+    conn = _conectar_bd()
+    cursor = conn.cursor()
+    cursor.execute("SELECT sip FROM sips WHERE paciente_id=?", (paciente_id,))
+    if cursor.fetchone():
+        conn.close()
         return jsonify({"error": "SIP ya existe."}), 400
     sip = f"SIP-{uuid.uuid4().hex[:10].upper()}"
-    insertar_sip(sip, paciente_id)
+    cursor.execute("INSERT INTO sips (sip, paciente_id) VALUES (?, ?)", (sip, paciente_id))
+    conn.commit()
+    conn.close()
     return jsonify({"sip": sip}), 201
 
 @app.route('/consultar_sip/<paciente_id>', methods=['GET'])
 def consultar_sip(paciente_id):
-    """
-    Recupera el SIP de un paciente.
-
-    Parameters
-    ----------
-    paciente_id : str
-        ID del paciente.
-
-    Returns
-    -------
-    Response
-        JSON con SIP o 404.
-    """
-    sip = leer_sip(paciente_id)
-    if not sip:
+    conn = _conectar_bd()
+    cursor = conn.cursor()
+    cursor.execute("SELECT sip FROM sips WHERE paciente_id=?", (paciente_id,))
+    resultado = cursor.fetchone()
+    conn.close()
+    if not resultado:
         return jsonify({"error": "No existe SIP."}), 404
-    return jsonify({"sip": sip})
+    return jsonify({"sip": resultado[0]})
 
 @app.route('/eliminar_sip/<paciente_id>', methods=['DELETE'])
 def eliminar_sip_endpoint(paciente_id):
-    """
-    Elimina el SIP de un paciente.
-
-    Parameters
-    ----------
-    paciente_id : str
-        ID del paciente.
-
-    Returns
-    -------
-    Response
-        Mensaje de confirmación.
-    """
-    if not leer_sip(paciente_id):
+    conn = _conectar_bd()
+    cursor = conn.cursor()
+    cursor.execute("SELECT sip FROM sips WHERE paciente_id=?", (paciente_id,))
+    if not cursor.fetchone():
+        conn.close()
         return jsonify({"error": "No existe SIP."}), 404
-    eliminar_sip(paciente_id)
+    cursor.execute("DELETE FROM sips WHERE paciente_id=?", (paciente_id,))
+    conn.commit()
+    conn.close()
     return jsonify({"mensaje": "SIP eliminado."})
 
 # === Pacientes CRUD ===
 @app.route('/pacientes', methods=['GET'])
 def listar_pacientes():
-    """
-    Lista todos los pacientes.
-
-    Returns
-    -------
-    Response
-        JSON con detalles de pacientes.
-    """
-    filas = leer_pacientes()
-    res = []
-    for (id_, user, pwd, nom, ape, edad, gen, est, hist, id_enf, id_med, id_hab, rol) in filas:
-        res.append({"id":id_, "username":user, "nombre":nom, "apellido":ape,
-                    "edad":edad, "genero":gen, "estado":est,
-                    "id_enfermero":id_enf, "id_medico":id_med, "id_habitacion":id_hab})
+    db = next(get_db())
+    pacientes = db.query(PacienteDB).all()
+    res = [{"id": p.id, "username": p.username, "nombre": p.nombre, "apellido": p.apellido,
+            "edad": p.edad, "genero": p.genero, "estado": p.estado,
+            "id_enfermero": p.id_enfermero, "id_medico": p.id_medico, "id_habitacion": p.id_habitacion} for p in pacientes]
     return jsonify(res)
+
 @app.route('/pacientes/alta', methods=['POST'])
 def alta_paciente():
-    """
-    Da de alta un nuevo paciente.
-
-    Parameters
-    ----------
-    JSON body con campos obligatorios y opcionales:
-      - id, username, password, nombre, apellido, edad, genero, estado
-      - historial_medico?, id_enfermero?, id_medico?, id_habitacion?
-
-    Returns
-    -------
-    Response
-        Estado 201 o mensaje de error.
-    """
-    d = request.json
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No se proporcionaron datos."}), 400
     try:
-        # Hashear la contraseña antes de insertarla
-        hashed_password = generate_password_hash(d['password'], method='pbkdf2:sha256', salt_length=16)
-        insertar_paciente(
-            paciente_id = d['id'],
-            username = d['username'],
-            password = hashed_password, # Almacenar el hash,
-            nombre = d['nombre'],
-            apellido = d['apellido'],
-            edad = d['edad'],
-            genero = d['genero'],
-            estado = d['estado'],
-            historial_medico = d.get('historial_medico'),
-            id_enfermero = d.get('id_enfermero'),
-            id_medico = d.get('id_medico'),
-            id_habitacion = d.get('id_habitacion')
+        hashed_password = generate_password_hash(data['password'])
+        nuevo_paciente = PacienteDB(
+            id=data['id'], username=data['username'], password=hashed_password,
+            nombre=data.get('nombre'), apellido=data.get('apellido'), edad=data.get('edad'),
+            genero=data.get('genero'), estado=data.get('estado'),
+            historial_medico=data.get('historial_medico'), id_enfermero=data.get('id_enfermero'),
+            id_medico=data.get('id_medico'), id_habitacion=data.get('id_habitacion')
         )
-        return jsonify({"mensaje":"Paciente dado de alta."}), 201
-    except ValueError as e:
-        return jsonify({"error":str(e)}), 400
+        db = next(get_db())
+        db.add(nuevo_paciente)
+        db.commit()
+        return jsonify({"mensaje": "Paciente dado de alta."}), 201
+    except KeyError as e:
+        db = next(get_db())
+        db.rollback()
+        return jsonify({"error": f"Campo requerido faltante: {str(e)}"}), 400
+    except Exception as e:
+        db = next(get_db())
+        db.rollback()
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/pacientes/baja/<paciente_id>', methods=['DELETE'])
-def baja_paciente(paciente_id:str):
-    """
-    Elimina un paciente.
-
-    Parameters
-    ----------
-    paciente_id : str
-        ID del paciente.
-
-    Returns
-    -------
-    Response
-        Mensaje de confirmación o error.
-    """
-    ids = {r for r in leer_pacientes()} # Asegúrate de que leer_pacientes devuelve una lista de tuplas donde el ID es el primer elemento
-    if paciente_id not in ids:
-        return jsonify({"error":"Paciente no existe."}), 404
-    eliminar_paciente(paciente_id)
-    return jsonify({"mensaje":"Paciente eliminado."})
+def baja_paciente(paciente_id: str):
+    db = next(get_db())
+    paciente = db.query(PacienteDB).filter(PacienteDB.id == paciente_id).first()
+    if not paciente:
+        return jsonify({"error": "Paciente no existe."}), 404
+    db.delete(paciente)
+    db.commit()
+    return jsonify({"mensaje": "Paciente eliminado."})
 
 @app.route("/cita/pedir", methods=["POST"])
-def pedir_cita():
-    """
-    Permite al paciente autenticado solicitar una nueva cita.
-    """
+@requiere_autenticacion
+def pedir_cita(usuario):
     data = request.get_json()
     if not data:
         return jsonify({"detail": "No se proporcionaron datos en la solicitud."}), 400
-
     tipo_cita = data.get("tipo_cita")
     fecha_hora_str = data.get("fecha_hora")
     medico_asignado = data.get("medico", "Sin asignar")
     motivo = data.get("motivo", "")
-    username_paciente = request.authorization.username
-
+    username_paciente = usuario.id
     if not tipo_cita or not fecha_hora_str:
         return jsonify({"detail": "Debes especificar el tipo de cita y la fecha/hora."}), 400
-
     try:
-        fecha_hora_dt = datetime.strptime(fecha_hora_str, '%Y-%m-%dT%H:%M:%S') # Espera formato ISO
-        fecha_hora_fmt_gestor = fecha_hora_dt.strftime('%Y %m %d %H:%M') # Formato para tu clase Cita
+        fecha_hora_dt = datetime.strptime(fecha_hora_str, '%Y-%m-%dT%H:%M:%S')
+        fecha_hora_fmt_gestor = fecha_hora_dt.strftime('%Y %m %d %H:%M')
     except ValueError:
         return jsonify({"detail": "Formato de fecha/hora inválido. Usa YYYY-MM-DDTHH:MM:SS"}), 400
-
-    paciente_obj = data.get(username_paciente)
+    paciente_obj = username_paciente
     if not paciente_obj:
-        return jsonify({"detail": f"Paciente con username {username_paciente} no encontrado."}), 404
-
+        return jsonify({"detail": f"Paciente con ID {username_paciente} no encontrado."}), 404
     id_cita = str(uuid.uuid4())
-
     nueva_cita = None
     if tipo_cita == "presencial":
         centro = data.get("centro")
@@ -421,7 +273,6 @@ def pedir_cita():
         nueva_cita = CitaUrgencias(id_cita, paciente_obj, medico_asignado, fecha_hora_fmt_gestor, nivel_prioridad=nivel_prioridad, motivo=motivo)
     else:
         return jsonify({"detail": "Tipo de cita no válido. Opciones: presencial, telefonica, urgencias."}), 400
-
     if nueva_cita:
         gestor_de_citas.anadir_cita(nueva_cita)
         return jsonify({"mensaje": f"Tu solicitud de cita {tipo_cita} ha sido registrada con ID: {id_cita}.", "id_cita": id_cita}), 201
@@ -431,444 +282,317 @@ def pedir_cita():
 # === Médicos CRUD ===
 @app.route('/medicos', methods=['GET'])
 def listar_medicos():
-    """
-    Lista todos los médicos.
-
-    Returns
-    -------
-    Response
-        JSON con detalles de médicos.
-    """
-    return jsonify([
-        {"id":m[0], "username":m[1], "especialidad":m[3], "antiguedad":m[4]}
-        for m in leer_medicos()
-    ])
+    db = next(get_db())
+    medicos = db.query(MedicoDB).all()
+    res = [{"id": m.id, "username": m.username, "especialidad": m.especialidad, "antiguedad": m.antiguedad} for m in medicos]
+    return jsonify(res)
 
 @app.route('/medicos/alta', methods=['POST'])
 def alta_medico():
-    """
-    Registra un nuevo médico.
-
-    Parameters
-    ----------
-    JSON body:
-      - id, username, password, especialidad, antiguedad
-
-    Returns
-    -------
-    Response
-        Estado 201 o mensaje de error.
-    """
-    d = request.json
-    # Validar campos obligatorios
-    if 'especialidad' not in d or 'antiguedad' not in d:
-        return jsonify({"error": "Debe indicar 'especialidad' y 'antiguedad'."}), 400
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No se proporcionaron datos."}), 400
     try:
-        # Hashear la contraseña antes de insertarla
-        hashed_password = generate_password_hash(d['password'], method='pbkdf2:sha256', salt_length=16)
-        insertar_medico(
-            medico_id    = d['id'],
-            username     = d['username'],
-            password     = hashed_password, # Almacenar el hash,
-            especialidad = d['especialidad'],
-            antiguedad   = int(d['antiguedad'])
+        hashed_password = generate_password_hash(data['password'])
+        nuevo_medico = MedicoDB(
+            id=data['id'], username=data['username'], password=hashed_password,
+            especialidad=data.get('especialidad'), antiguedad=data.get('antiguedad')
         )
-        return jsonify({"mensaje":"Médico dado de alta."}), 201
-    except ValueError as e:
-        return jsonify({"error":str(e)}), 400
-
+        db = next(get_db())
+        db.add(nuevo_medico)
+        db.commit()
+        return jsonify({"mensaje": "Médico dado de alta."}), 201
+    except KeyError as e:
+        db = next(get_db())
+        db.rollback()
+        return jsonify({"error": f"Campo requerido faltante: {str(e)}"}), 400
+    except Exception as e:
+        db = next(get_db())
+        db.rollback()
+        return jsonify({"error": str(e)}), 500
 @app.route('/medicos/baja/<medico_id>', methods=['DELETE'])
 def baja_medico(medico_id):
-    """
-    Elimina un médico.
+    db = next(get_db())
+    medico = db.query(MedicoDB).filter(MedicoDB.id == medico_id).first()
+    if not medico:
+        return jsonify({"error": "Médico no existe."}), 404
+    db.delete(medico)
+    db.commit()
+    return jsonify({"mensaje": "Médico eliminado."})
 
-    Parameters
-    ----------
-    medico_id : str
-        ID del médico.
-
-    Returns
-    -------
-    Response
-        Mensaje de confirmación o error.
-    """
-    ids = {r[0] for r in leer_medicos()}
-    if medico_id not in ids:
-        return jsonify({"error":"Médico no existe."}), 404
-    eliminar_medico(medico_id)
-    return jsonify({"mensaje":"Médico eliminado."})
 @app.route("/citas", methods=["GET"])
 def listar_citas():
-    """
-    Lista todas las citas gestionadas por el GestorCitas.
-    """
     citas = gestor_de_citas.mostrar_citas()
     return jsonify(citas)
 
 # === Enfermeros CRUD ===
 @app.route('/enfermeros', methods=['GET'])
 def listar_enfermeros():
-    """
-    Lista todos los enfermeros.
-
-    Returns
-    -------
-    Response
-        JSON con detalles de enfermeros.
-    """
-    return jsonify([
-        {"id": e[0], "username": e[1]}
-        for e in leer_enfermeros()
-    ])
+    db = next(get_db())
+    enfermeros = db.query(EnfermeroDB).all()
+    res = [{"id": e.id, "username": e.username, "antieguedad": e.antieguedad, "especialidad": e.especialidad} for e in enfermeros]
+    return jsonify(res)
 
 @app.route('/enfermeros/alta', methods=['POST'])
 def alta_enfermero():
-    """
-    Registra un nuevo enfermero.
-
-    Parameters
-    ---------    JSON body:
-      - id, username, password
-
-    Returns
-    -------
-    Response
-        Estado 201 o mensaje de error.
-    """
-    d = request.json
-    # Validar campos obligatorios
-    if 'username' not in d or 'password' not in d:
-        return jsonify({"error": "Debe indicar 'username' y 'password'."}), 400
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No se proporcionaron datos."}), 400
     try:
-        # Hashear la contraseña antes de insertarla
-        hashed_password = generate_password_hash(d['password'], method='pbkdf2:sha256', salt_length=16)
-        insertar_enfermero(
-            enfermero_id = d['id'],
-            username     = d['username'],
-            password     = hashed_password, # Almacenar el hash,
-            antiguedad =  (d['antieguedad']),
-            especialidad = d['especialidad']
+        hashed_password = generate_password_hash(data['password'])
+        nuevo_enfermero = EnfermeroDB(
+            id=data['id'], username=data['username'], password=hashed_password,
+            antieguedad=data.get('antieguedad'), especialidad=data.get('especialidad')
         )
+        db = next(get_db())
+        db.add(nuevo_enfermero)
+        db.commit()
         return jsonify({"mensaje": "Enfermero dado de alta."}), 201
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+    except KeyError as e:
+        db = next(get_db())
+        db.rollback()
+        return jsonify({"error": f"Campo requerido faltante: {str(e)}"}), 400
+    except Exception as e:
+        db = next(get_db())
+        db.rollback()
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/enfermeros/baja/<enf_id>', methods=['DELETE'])
 def baja_enfermero(enf_id):
-    """
-    Elimina un enfermero.
-
-    Parameters
-    ----------
-    enf_id : str
-        ID del enfermero.
-
-    Returns
-    -------
-    Response
-        Mensaje de confirmación o error.
-    """
-    # Comprobar existencia del enfermero
-    ids = {r[0] for r in leer_enfermeros()}
-    if enf_id not in ids:
+    db = next(get_db())
+    enfermero = db.query(EnfermeroDB).filter(EnfermeroDB.id == enf_id).first()
+    if not enfermero:
         return jsonify({"error": "Enfermero no existe."}), 404
-    eliminar_enfermero(enf_id)
+    db.delete(enfermero)
+    db.commit()
     return jsonify({"mensaje": "Enfermero eliminado."})
 
 # === Auxiliares CRUD ===
 @app.route('/auxiliares', methods=['GET'])
 def listar_auxiliares():
-    """
-    Lista todos los auxiliares.
-
-    Returns
-    -------
-    Response
-        JSON con detalles de auxiliares.
-    """
-    return jsonify([
-        {"id":a[0], "antiguedad":a[1], "id_enfermero":a[2]}
-        for a in leer_auxiliares()
-    ])
+    conn = _conectar_bd()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, antiguedad, id_enfermero FROM auxiliares")
+    auxiliares = cursor.fetchall()
+    conn.close()
+    return jsonify([{"id": a[0], "antiguedad": a[1], "id_enfermero": a[2]} for a in auxiliares])
 
 @app.route('/auxiliares/alta', methods=['POST'])
 def alta_auxiliar():
-    """
-    Registra un nuevo auxiliar.
-
-    Parameters
-    ----------
-    JSON body:
-      - id, antiguedad, id_enfermero?
-
-    Returns
-    -------
-    Response
-        Estado 201 o mensaje de error.
-    """
-    d = request.json
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No se proporcionaron datos."}), 400
     try:
-        insertar_auxiliar(
-            id           = d['id'],
-            antiguedad   = d['antiguedad'],
-            id_enfermero = d.get('id_enfermero')
-        )
-        return jsonify({"mensaje":"Auxiliar dado de alta."}), 201
-    except ValueError as e:
-        return jsonify({"error":str(e)}), 400
+        conn = _conectar_bd()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO auxiliares (id, antiguedad, id_enfermero) VALUES (?, ?, ?)",
+                       (data['id'], data['antiguedad'], data.get('id_enfermero')))
+        conn.commit()
+        conn.close()
+        return jsonify({"mensaje": "Auxiliar dado de alta."}), 201
+    except KeyError as e:
+        conn = _conectar_bd()
+        conn.rollback()
+        conn.close()
+        return jsonify({"error": f"Campo requerido faltante: {str(e)}"}), 400
+    except sqlite3.IntegrityError as e:
+        conn = _conectar_bd()
+        conn.rollback()
+        conn.close()
+        return jsonify({"error": f"Error de integridad: {str(e)}"}), 400
 
 @app.route('/auxiliares/baja/<aux_id>', methods=['DELETE'])
 def baja_auxiliar(aux_id):
-    """
-    Elimina un auxiliar.
-
-    Parameters
-    ----------
-    aux_id : str
-        ID del auxiliar.
-
-    Returns
-    -------
-    Response
-        Mensaje de confirmación o error.
-    """
-    ids = {r[0] for r in leer_auxiliares()}
-    if aux_id not in ids:
-        return jsonify({"error":"Auxiliar no existe."}), 404
-    eliminar_auxiliar(aux_id)
-    return jsonify({"mensaje":"Auxiliar eliminado."})
+    conn = _conectar_bd()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM auxiliares WHERE id=?", (aux_id,))
+    conn.commit()
+    conn.close()
+    if cursor.rowcount > 0:
+        return jsonify({"mensaje": "Auxiliar eliminado."})
+    else:
+        return jsonify({"error": "Auxiliar no existe."}), 404
 
 # === Habitaciones CRUD ===
 @app.route('/habitaciones', methods=['GET'])
 def listar_habitaciones():
-    """
-    Lista todas las habitaciones.
-
-    Returns
-    -------
-    Response
-        JSON con detalles de habitaciones.
-    """
-    return jsonify([
-        {"numero":h[0], "capacidad":h[1], "limpia":bool(h[2])}
-        for h in leer_habitaciones()
-    ])
+    conn = _conectar_bd()
+    cursor = conn.cursor()
+    cursor.execute("SELECT numero_habitacion, capacidad, limpia FROM habitaciones")
+    habitaciones = cursor.fetchall()
+    conn.close()
+    return jsonify([{"numero": h[0], "capacidad": h[1], "limpia": bool(h[2])} for h in habitaciones])
 
 @app.route('/habitaciones/alta', methods=['POST'])
 def alta_habitacion():
-    """
-    Registra una nueva habitación.
-
-    Parameters
-    ----------
-    JSON body:
-      - numero, capacidad
-
-    Returns
-    -------
-    Response
-        Estado 201 o mensaje de error.
-    """
-    d = request.json
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No se proporcionaron datos."}), 400
     try:
-        insertar_habitacion(
-            numero_habitacion = d['numero'],
-            capacidad         = d['capacidad']
-        )
-        return jsonify({"mensaje":"Habitación dada de alta."}), 201
-    except ValueError as e:
-        return jsonify({"error":str(e)}), 400
+        conn = _conectar_bd()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO habitaciones (numero_habitacion, capacidad, limpia) VALUES (?, ?, ?)",
+                       (data['numero'], data['capacidad'], 0))  # Por defecto, la habitación está sucia (0)
+        conn.commit()
+        conn.close()
+        return jsonify({"mensaje": "Habitación dada de alta."}), 201
+    except KeyError as e:
+        conn = _conectar_bd()
+        conn.rollback()
+        conn.close()
+        return jsonify({"error": f"Campo requerido faltante: {str(e)}"}), 400
+    except sqlite3.IntegrityError as e:
+        conn = _conectar_bd()
+        conn.rollback()
+        conn.close()
+        return jsonify({"error": f"Error de integridad: {str(e)}"}), 400
 
 @app.route('/habitaciones/limpiar/<int:numero>', methods=['PATCH'])
 def habitacion_limpiar(numero):
-    """
-    Marca una habitación como limpia.
-
-    Parameters
-    ----------
-    numero : int
-        Número de habitación.
-
-    Returns
-    -------
-    Response
-        Mensaje de confirmación o error.
-    """
-    nums = {r[0] for r in leer_habitaciones()}
-    if numero not in nums:
-        return jsonify({"error":"Habitación no existe."}), 404
-    limpiar_habitacion(numero)
-    return jsonify({"mensaje":"Habitación limpiada."})
+    conn = _conectar_bd()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE habitaciones SET limpia=1 WHERE numero_habitacion=?", (numero,))
+    conn.commit()
+    conn.close()
+    if cursor.rowcount > 0:
+        return jsonify({"mensaje": "Habitación limpiada."})
+    else:
+        return jsonify({"error": "Habitación no existe."}), 404
 
 @app.route('/habitaciones/baja/<int:numero>', methods=['DELETE'])
 def baja_habitacion(numero):
-    """
-    Elimina una habitación.
-
-    Parameters
-    ----------
-    numero : int
-        Número de habitación.
-
-    Returns
-    -------
-    Response
-        Mensaje de confirmación o error.
-    """
-    nums = {r[0] for r in leer_habitaciones()}
-    if numero not in nums:
-        return jsonify({"error":"Habitación no existe."}), 404
-    eliminar_habitacion(numero)
-    return jsonify({"mensaje":"Habitación eliminada."})
+    conn = _conectar_bd()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM habitaciones WHERE numero_habitacion=?", (numero,))
+    conn.commit()
+    conn.close()
+    if cursor.rowcount > 0:
+        return jsonify({"mensaje": "Habitación eliminada."})
+    else:
+        return jsonify({"error": "Habitación no existe."}), 404
 
 # === Asignaciones 1:N ===
 @app.route('/pacientes/asignar_medico', methods=['POST'])
 def asignar_medico():
-    """
-    Asigna un médico a un paciente.
-
-    Parameters
-    ----------
-    JSON body:
-      - id_paciente : str
-      - id_medico   : str
-
-    Returns
-    -------
-    Response
-        Mensaje de confirmación o error.
-    """
-    d = request.json
-    id_p = d['id_paciente']; id_m = d['id_medico']
-    pacientes_ids = {r[0] for r in leer_pacientes()}
-    medicos_ids   = {r[0] for r in leer_medicos()}
-    if id_p not in pacientes_ids or id_m not in medicos_ids:
-        return jsonify({"error":"Paciente o médico no existe."}), 404
-    conn = _conectar_bd()
-    conn.execute("UPDATE pacientes SET id_medico=? WHERE id=?;", (id_m, id_p))
-    conn.commit(); conn.close()
-    return jsonify({"mensaje":"Médico asignado."})
+    data = request.get_json()
+    if not data or 'id_paciente' not in data or 'id_medico' not in data:
+        return jsonify({"error": "Se requieren id_paciente e id_medico."}), 400
+    id_p = data['id_paciente']; id_m = data['id_medico']
+    db = next(get_db())
+    paciente = db.query(PacienteDB).filter(PacienteDB.id == id_p).first()
+    medico = db.query(MedicoDB).filter(MedicoDB.id == id_m).first()
+    if not paciente or not medico:
+        return jsonify({"error": "Paciente o médico no existe."}), 404
+    paciente.id_medico = id_m
+    db.commit()
+    return jsonify({"mensaje": "Médico asignado."})
 
 @app.route('/pacientes/asignar_habitacion', methods=['POST'])
-
 def asignar_habitacion():
-    """
-    Asigna una habitación a un paciente.
-
-    Parameters
-    ----------
-    JSON body:
-      - id_paciente : str
-      - numero      : int
-
-    Returns
-    -------
-    Response
-        Mensaje de confirmación o error.
-    """
-    d = request.json
-    id_p = d['id_paciente']; num = d['numero']
-    pacientes_ids = {r[0] for r in leer_pacientes()}
-    hab_ids       = {r[0] for r in leer_habitaciones()}
-    if id_p not in pacientes_ids or num not in hab_ids:
-        return jsonify({"error":"Paciente o habitación no existe."}), 404
+    data = request.get_json()
+    if not data or 'id_paciente' not in data or 'numero' not in data:
+        return jsonify({"error": "Se requieren id_paciente y numero de habitación."}), 400
+    id_p = data['id_paciente']; num = data['numero']
+    db = next(get_db())
+    paciente = db.query(PacienteDB).filter(PacienteDB.id == id_p).first()
     conn = _conectar_bd()
-    conn.execute("UPDATE pacientes SET id_habitacion=? WHERE id=?;", (num, id_p))
-    conn.commit(); conn.close()
-    return jsonify({"mensaje":"Habitación asignada."})
+    cursor = conn.cursor()
+    cursor.execute("SELECT numero_habitacion FROM habitaciones WHERE numero_habitacion=?", (num,))
+    habitacion = cursor.fetchone()
+    conn.close()
+    if not paciente or not habitacion:
+        return jsonify({"error": "Paciente o habitación no existe."}), 404
+    paciente.id_habitacion = num
+    db.commit()
+    return jsonify({"mensaje": "Habitación asignada."})
 
 # === Descargar PDF ===
 @app.route('/paciente/descargar_pdf', methods=['GET'])
 @requiere_autenticacion
 def descargar_pdf(usuario):
-    """
-    Genera un PDF con la información del paciente autenticado.
-
-    Parameters
-    ----------
-    usuario/rol: object
-        Usuario autenticado con rol 'paciente'.
-
-    Returns
-    -------
-    Response
-        JSON con nombre de archivo PDF o error.
-    """
     if usuario.rol != 'paciente':
-        return jsonify({"error":"Acceso denegado."}), 403
+        return jsonify({"error": "Acceso denegado."}), 403
     paciente_id = usuario.id
-    filas = [r for r in leer_pacientes() if r[0] == paciente_id]
-    if not filas:
+    db = next(get_db())
+    paciente = db.query(PacienteDB).filter(PacienteDB.id == paciente_id).first()
+    if not paciente:
         return jsonify({"error": "Paciente no existe."}), 404
-    paciente_id = usuario.id
-    filas = [r for r in leer_pacientes() if r[0] == paciente_id]
-    if not filas:
-        return jsonify({"error": "Paciente no existe."}), 404
-    # Convertir la tupla en un diccionario para el generador de PDF
-    campos = ['id', 'username', 'password', 'nombre', 'apellido', 'edad',
-              'genero', 'estado', 'historial_medico', 'id_enfermero',
-              'id_medico', 'id_habitacion', 'rol']
-    datos = filas[0]
-    paciente_dict = dict(zip(campos, datos))
+    paciente_dict = {
+        'id': paciente.id, 'username': paciente.username, 'nombre': paciente.nombre, 'apellido': paciente.apellido,
+        'edad': paciente.edad, 'genero': paciente.genero, 'estado': paciente.estado, 'historial_medico': paciente.historial_medico,
+        'id_enfermero': paciente.id_enfermero, 'id_medico': paciente.id_medico, 'id_habitacion': paciente.id_habitacion
+    }
     try:
         nombre_pdf = generar_pdf_paciente(paciente_dict) # type: ignore[arg-type]
         return jsonify({"pdf": nombre_pdf})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-# --- Endpoints de registro ---
+
+# --- Endpoints de registro (Movidos al principio para claridad) ---
 
 @app.route("/pacientes/register", methods=["POST"])
 def register_paciente():
     data = request.get_json()
     if not data:
         return jsonify({"detail": "No se proporcionaron datos de registro."}), 400
-    username = data.get("username")
-    password = data.get("password")
-    nombre = data.get("nombre")
-    apellido = data.get("apellido")
-    edad = data.get("edad")
-    genero = data.get("genero")
-    estado = data.get("estado")
-    if not all([username, password, nombre, apellido, edad, genero, estado]):
-        return jsonify({"detail": "Todos los campos son obligatorios."}), 400
+    username = None
+    password = None
+    nombre = None
+    apellido = None
+    edad = None
+    genero = None
+    estado = None
+    hashed_password = None
+    new_paciente = None
     db = next(get_db())
-    existing_user = db.query(PacienteDB).filter(PacienteDB.username == username).first()
-    if existing_user:
-        return jsonify({"detail": f"El username '{username}' ya está registrado."}), 409
-    hashed_password = generate_password_hash(password)
-
-
-new_paciente = PacienteDB(id=username, username=username, password=hashed_password, nombre=nombre, apellido=apellido,
-                          edad=edad, genero=genero, estado=estado)
-try:
-    db.add(new_paciente)
-    db.commit()
-    return jsonify({"message": f"Paciente '{username}' registrado exitosamente."}, 201)
-except Exception as e:
-    db.rollback()
-    return jsonify({"detail": f"Error al registrar el paciente: {str(e)}"}, 500)
-
+    try:
+        username = data.get("username")
+        password = data.get("password")
+        nombre = data.get("nombre")
+        apellido = data.get("apellido")
+        edad = data.get("edad")
+        genero = data.get("genero")
+        estado = data.get("estado")
+        if not all([username, password, nombre, apellido, edad, genero, estado]):
+            return jsonify({"detail": "Todos los campos son obligatorios."}), 400
+        existing_user = db.query(PacienteDB).filter(PacienteDB.username == username).first()
+        if existing_user:
+            return jsonify({"detail": f"El username '{username}' ya está registrado."}), 409
+        hashed_password = generate_password_hash(password)
+        new_paciente = PacienteDB(id=username, username=username, password=hashed_password, nombre=nombre, apellido=apellido, edad=edad, genero=genero, estado=estado)
+        db.add(new_paciente)
+        db.commit()
+        return jsonify({"message": f"Paciente '{username}' registrado exitosamente."}, 201)
+    except Exception as e:
+        db.rollback()
+        return jsonify({"detail": f"Error al registrar el paciente: {str(e)}"}, 500)
 
 @app.route("/medicos/register", methods=["POST"])
 def register_medico():
     data = request.get_json()
     if not data:
         return jsonify({"detail": "No se proporcionaron datos de registro."}), 400
-    username = data.get("username")
-    password = data.get("password")
-    especialidad = data.get("especialidad")
-    antiguedad = data.get("antiguedad")
-    id = data.get("id")
-    if not all([username, password, especialidad, antiguedad, id]):
-        return jsonify({"detail": "Todos los campos son obligatorios."}), 400
+    username = None
+    password = None
+    especialidad = None
+    antiguedad = None
+    id = None
+    hashed_password = None
+    new_medico = None
     db = next(get_db())
-    existing_user = db.query(MedicoDB).filter(MedicoDB.username == username).first()
-    if existing_user:
-        return jsonify({"detail": f"El username '{username}' ya está registrado como médico."}), 409
-    hashed_password = generate_password_hash(password)
-    new_medico = MedicoDB(id=id, username=username, password=hashed_password, especialidad=especialidad,
-                          antiguedad=antiguedad)
     try:
+        username = data.get("username")
+        password = data.get("password")
+        especialidad = data.get("especialidad")
+        antiguedad = data.get("antiguedad")
+        id = data.get("id")
+        if not all([username, password, especialidad, antiguedad, id]):
+            return jsonify({"detail": "Todos los campos son obligatorios."}), 400
+        existing_user = db.query(MedicoDB).filter(MedicoDB.username == username).first()
+        if existing_user:
+            return jsonify({"detail": f"El username '{username}' ya está registrado como médico."}), 409
+        hashed_password = generate_password_hash(password)
+        new_medico = MedicoDB(id=id, username=username, password=hashed_password, especialidad=especialidad, antiguedad=antiguedad)
         db.add(new_medico)
         db.commit()
         return jsonify({"message": f"Médico '{username}' registrado exitosamente."}, 201)
@@ -876,32 +600,39 @@ def register_medico():
         db.rollback()
         return jsonify({"detail": f"Error al registrar el médico: {str(e)}"}, 500)
 
-
 @app.route("/enfermeros/register", methods=["POST"])
 def register_enfermero():
     data = request.get_json()
     if not data:
         return jsonify({"detail": "No se proporcionaron datos de registro."}), 400
-    username = data.get("username")
-    password = data.get("password")
-    antieguedad = data.get("antieguedad")
-    especialidad = data.get("especialidad")
-    id = data.get("id")
-    if not all([username, password, antieguedad, especialidad, id]):
-        return jsonify({"detail": "Todos los campos son obligatorios."}), 400
+    username = None
+    password = None
+    antieguedad = None
+    especialidad = None
+    id = None
+    hashed_password = None
+    new_enfermero = None
     db = next(get_db())
-    existing_user = db.query(EnfermeroDB).filter(EnfermeroDB.username == username).first()
-    if existing_user:
-        return jsonify({"detail": f"El username '{username}' ya está registrado como enfermero."}), 409
-    hashed_password = generate_password_hash(password)
-    new_enfermero = EnfermeroDB(id=id, username=username, password=hashed_password, antieguedad=antieguedad,
-                                especialidad=especialidad)
     try:
+        username = data.get("username")
+        password = data.get("password")
+        antieguedad = data.get("antieguedad")
+        especialidad = data.get("especialidad")
+        id = data.get("id")
+        if not all([username, password, antieguedad, especialidad, id]):
+            return jsonify({"detail": "Todos los campos son obligatorios."}), 400
+        existing_user = db.query(EnfermeroDB).filter(EnfermeroDB.username == username).first()
+        if existing_user:
+            return jsonify({"detail": f"El username '{username}' ya está registrado como enfermero."}), 409
+        hashed_password = generate_password_hash(password)
+        new_enfermero = EnfermeroDB(id=id, username=username, password=hashed_password, antieguedad=antieguedad, especialidad=especialidad)
         db.add(new_enfermero)
         db.commit()
         return jsonify({"message": f"Enfermero '{username}' registrado exitosamente."}, 201)
     except Exception as e:
         db.rollback()
         return jsonify({"detail": f"Error al registrar el enfermero: {str(e)}"}, 500)
+
 if __name__ == '__main__':
+    Base.metadata.create_all(engine)  # Asegurar que las tablas SQLAlchemy se creen
     app.run(debug=True, port=5000)
