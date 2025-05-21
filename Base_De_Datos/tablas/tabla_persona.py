@@ -53,6 +53,7 @@ def insertar_persona(id: str, nombre: str, apellido: str, edad: int,
     rol : str
         Rol que desempeña la persona en el sistema (por ejemplo: paciente, médico, enfermero, etc.).
     """
+    conn = None
     try:
         conn = conectar()
         cursor = conn.cursor()

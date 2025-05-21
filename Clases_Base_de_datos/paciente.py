@@ -1,6 +1,5 @@
 from typing import List
 from Clases_Base_de_datos.persona import Persona
-from Clases_Base_de_datos.citas import Cita
 class Paciente(Persona):
     """
     Clase que representa a un paciente en el sistema de gestión hospitalaria.
@@ -64,6 +63,7 @@ class Paciente(Persona):
 
     def __init__(self, id: str,username: str, password: str, nombre: str, apellido: str, edad: int, genero: str, estado: str, historial_medico: List[str] = None):
         super().__init__(id, nombre, apellido, edad, genero, 'paciente', password)
+        from Clases_Base_de_datos.citas import Cita
         self.username = username
         self.__password = password
         self.estado = estado
@@ -85,7 +85,7 @@ class Paciente(Persona):
         nuevo_estado : str
             Nuevo estado del paciente.
         """
-        self.__estado = nuevo_estado
+        self.estado = nuevo_estado
 
     def prioridad_urgencias(self)-> None:
         """
@@ -96,13 +96,13 @@ class Paciente(Persona):
         None
             Modifica el valor de prioridad_urgencias en función del estado del paciente.
         """
-        if self.__estado.lower() == 'grave':
+        if self.estado.lower() == 'grave':
             self._prioridad_urgencias = 1
             print(f'El paciente {self.nombre} tiene prioridad alta en urgencias.')
-        elif self.__estado.lower() == 'moderado':
+        elif self.estado.lower() == 'moderado':
             self._prioridad_urgencias = 2
             print(f'El paciente {self.nombre} tiene prioridad moderada en urgencias.')
-        elif self.__estado.lower() == 'leve':
+        elif self.estado.lower() == 'leve':
             self._prioridad_urgencias = 3
             print(f'El paciente {self.nombre} tiene prioridad baja en urgencias.')
 
@@ -148,5 +148,5 @@ class Paciente(Persona):
             'historial_medico': self.historial_medico,
             'citas': lista_citas,
             'rol': self._rol,
-            'estado': self.__estado,
+            'estado': self.estado,
         }

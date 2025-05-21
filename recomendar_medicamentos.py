@@ -3,8 +3,7 @@ Funciones para recomendar medicamentos basadas en síntomas y alergias.
 """
 from typing import Union, List
 import json
-
-# Funciones de BD
+import datetime
 from Base_De_Datos.tablas.tabla_paciente    import (
     crear_tabla_pacientes,
     crear_tabla_paciente_enfermedad,
@@ -15,17 +14,14 @@ from Base_De_Datos.tablas.tabla_medicamento import (
     leer_medicamentos
 )
 
-# Clases de dominio
 from Clases_Base_de_datos.paciente   import Paciente
 from Clases_Base_de_datos.medicamento import Medicamento
 
-# — Inicializar Estructura de Tablas —
 crear_tabla_pacientes()
 crear_tabla_paciente_enfermedad()
 crear_tabla_medicamentos()
 
-# — Cargar Datos y Mapear a Objetos —
-pacientes_filas    = leer_pacientes()
+pacientes_filas = leer_pacientes()
 medicamentos_filas = leer_medicamentos()
 
 pacientes: List[Paciente] = [
@@ -48,7 +44,7 @@ medicamentos: List[Medicamento] = [
         nombre=row[1],
         dosis=row[2],
         precio=row[3],
-        fecha_caducidad=row[4],
+        fecha_caducidad=datetime.datetime.fromisoformat(row[4]),
         alergenos=row[5].split(',') if row[5] else []
     )
     for row in medicamentos_filas
@@ -93,16 +89,10 @@ def comprobacion_alergenos(
     return resultado
 
 if __name__ == "__main__":
-    # Inicialización de tablas…
     crear_tabla_pacientes()
     crear_tabla_paciente_enfermedad()
     crear_tabla_medicamentos()
 
-    # Carga de datos…
-    filas_pacientes = leer_pacientes()
-    medicamentos = leer_medicamentos()
-
-    # Protección contra lista vacía
     if not pacientes:
         print("No hay pacientes. Inserta alguno con 'insertar_paciente()' y vuelve a intentarlo.")
         exit(1)
@@ -110,7 +100,6 @@ if __name__ == "__main__":
         print("No hay medicamentos. Inserta alguno con 'insertar_medicamento()' y vuelve a intentarlo.")
         exit(1)
 
-    # Ya seguro:
     p = pacientes[0]
     rec = recomendar_medicamento(p, medicamentos)
     print("Recomendados:", [m.nombre for m in rec])

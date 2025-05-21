@@ -52,8 +52,7 @@ def crear_tabla_centros() -> None:
             presupuesto REAL NOT NULL,
             habitaciones INTEGER NOT NULL,
             id_provincia INTEGER NOT NULL,
-            id_ambulancia TEXT NOT NULL,
-            FOREIGN KEY(id_ambulancia) REFERENCES ambulancias(matricula) ON DELETE SET NULL
+            FOREIGN KEY(id_provincia) REFERENCES provincias(id) ON DELETE CASCADE
         );
         """
     )

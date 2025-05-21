@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from typing import List
 from Clases_Base_de_datos.citas import Cita
 from Clases_Base_de_datos.paciente import Paciente
@@ -8,7 +7,7 @@ class CitaPresencial(Cita):
     """ Clase que hereada directamente de la clase abstracta Cita dentro de
     nuestra base de datos """
 
-    def __init__(self, id_cita: int, paciente: Paciente, medico : str, fecha_hora_dt, centro: str):
+    def __init__(self, id_cita: str, paciente: Paciente, medico : str, fecha_hora_dt, centro: str):
 
         """ Parámetros:
             -----------
@@ -36,7 +35,7 @@ class CitaTelefonica(Cita):
 
     """ Clase que hereda directamente de la clase abstracta Cita dentro de la base de datos creada"""
 
-    def __init__(self, id_cita: int, paciente: Paciente, medico: str, fecha_hora_dt, telefono_contacto: str):
+    def __init__(self, id_cita: str, paciente: Paciente, medico: str, fecha_hora_dt, telefono_contacto: str):
 
         """ Parametros:
             -----------
@@ -66,7 +65,7 @@ class CitaUrgencias(Cita):
     """ Esta nueva clase vuelve a heredar de la clase base Cita (creada en la base de datos)
     pero en este caso se representan las citas de urgencias dentro del hospital """
 
-    def __init__(self, id_cita: int, paciente: Paciente, medico: str, fecha_hora_dt, nivel_prioridad: str):
+    def __init__(self, id_cita: str, paciente: Paciente, medico: str, fecha_hora_dt, nivel_prioridad: str):
 
         """ Parametros:
             -----------
