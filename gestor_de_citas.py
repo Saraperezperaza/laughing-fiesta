@@ -7,8 +7,7 @@ class CitaPresencial(Cita):
     """ Clase que hereada directamente de la clase abstracta Cita dentro de
     nuestra base de datos """
 
-    def __init__(self, id_cita: str, paciente: Paciente, medico : str, fecha_hora_dt, centro: str):
-
+    def __init__(self, id_cita: str, paciente: Paciente, medico : str, fecha_hora_dt, centro: str,motivo: str = ''):
         """ Parámetros:
             -----------
              - Id_cita -> Id unico que identifica cada cita pedida
@@ -19,7 +18,7 @@ class CitaPresencial(Cita):
              - centro -> Centro de la cita
         """
 
-        super().__init__(id_cita, paciente, medico, fecha_hora_dt)
+        super().__init__(id_cita, paciente, medico, fecha_hora_dt, motivo)
         self.centro = centro
 
     def cancelar_cita(self) -> str:
@@ -35,7 +34,7 @@ class CitaTelefonica(Cita):
 
     """ Clase que hereda directamente de la clase abstracta Cita dentro de la base de datos creada"""
 
-    def __init__(self, id_cita: str, paciente: Paciente, medico: str, fecha_hora_dt, telefono_contacto: str):
+    def __init__(self, id_cita: str, paciente: Paciente, medico: str, fecha_hora_dt, telefono_contacto: str, motivo: str = ''):
 
         """ Parametros:
             -----------
@@ -47,7 +46,7 @@ class CitaTelefonica(Cita):
              - telefono_contacto -> Telefono de contacto para la llamada
 
         """
-        super().__init__(id_cita, paciente, medico, fecha_hora_dt)
+        super().__init__(id_cita, paciente, medico, fecha_hora_dt, motivo)
         self.telefono_contacto = telefono_contacto
 
     def cancelar_cita(self) -> str:
@@ -65,7 +64,7 @@ class CitaUrgencias(Cita):
     """ Esta nueva clase vuelve a heredar de la clase base Cita (creada en la base de datos)
     pero en este caso se representan las citas de urgencias dentro del hospital """
 
-    def __init__(self, id_cita: str, paciente: Paciente, medico: str, fecha_hora_dt, nivel_prioridad: str):
+    def __init__(self, id_cita: str, paciente: Paciente, medico: str, fecha_hora_dt, nivel_prioridad: str, motivo: str = ''):
 
         """ Parametros:
             -----------
@@ -76,7 +75,7 @@ class CitaUrgencias(Cita):
              - hora -> Hora de la cita
              - nivel_prioridad -> Nivel de la urgencia
              """
-        super().__init__(id_cita, paciente, medico, fecha_hora_dt)
+        super().__init__(id_cita, paciente, medico, fecha_hora_dt, motivo)
         self.nivel_prioridad = nivel_prioridad
 
     def cancelar_cita(self) -> str:

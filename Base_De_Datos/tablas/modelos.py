@@ -27,5 +27,5 @@ class EnfermeroDB(Base):
     id = Column(String, primary_key=True)
     username = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
-    antieguedad = Column(Integer)
+    antiguedad = Column(Integer)
     especialidad = Column(String)

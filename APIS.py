@@ -12,6 +12,7 @@ Ofrece:
 
 Persistencia mediante SQLite, usando módulos en Base_De_Datos/tablas.
 """
+import logging
 from flask import Flask, request, jsonify
 from functools import wraps
 import requests
@@ -38,8 +39,9 @@ from Base_De_Datos.tablas.tabla_auxiliar import crear_tabla_auxiliares, insertar
 # Importar utilidades externas
 from generador_pdf import generar_pdf_paciente
 import gestor_de_citas
-from gestor_de_citas import CitaPresencial, CitaTelefonica, CitaUrgencias
+from gestor_de_citas import CitaPresencial, CitaTelefonica, CitaUrgencias, GestorCitas
 from Base_De_Datos.tablas.modelos import PacienteDB, MedicoDB, EnfermeroDB  # Importación corregida
+from Clases_Base_de_datos.paciente import Paciente
 # Configuración RxNorm
 RXNORM_URL = "https://rxnav.nlm.nih.gov/REST/drugs.json"
 
@@ -243,42 +245,73 @@ def pedir_cita(usuario):
     fecha_hora_str = data.get("fecha_hora")
     medico_asignado = data.get("medico", "Sin asignar")
     motivo = data.get("motivo", "")
-    username_paciente = usuario.id
+    username_paciente_id = usuario.id # Este es el ID del paciente
+
     if not tipo_cita or not fecha_hora_str:
         return jsonify({"detail": "Debes especificar el tipo de cita y la fecha/hora."}), 400
+
     try:
         fecha_hora_dt = datetime.strptime(fecha_hora_str, '%Y-%m-%dT%H:%M:%S')
         fecha_hora_fmt_gestor = fecha_hora_dt.strftime('%Y %m %d %H:%M')
-    except ValueError:
-        return jsonify({"detail": "Formato de fecha/hora inválido. Usa YYYY-MM-DDTHH:MM:SS"}), 400
-    paciente_obj = username_paciente
-    if not paciente_obj:
-        return jsonify({"detail": f"Paciente con ID {username_paciente} no encontrado."}), 404
-    id_cita = str(uuid.uuid4())
-    nueva_cita = None
-    if tipo_cita == "presencial":
-        centro = data.get("centro")
-        if not centro:
-            return jsonify({"detail": "Para cita presencial, se requiere el centro."}), 400
-        nueva_cita = CitaPresencial(id_cita, paciente_obj, medico_asignado, fecha_hora_fmt_gestor, centro=centro, motivo=motivo)
-    elif tipo_cita == "telefonica":
-        telefono_contacto = data.get("telefono_contacto")
-        if not telefono_contacto:
-            return jsonify({"detail": "Para cita telefónica, se requiere el teléfono de contacto."}), 400
-        nueva_cita = CitaTelefonica(id_cita, paciente_obj, medico_asignado, fecha_hora_fmt_gestor, telefono_contacto=telefono_contacto, motivo=motivo)
-    elif tipo_cita == "urgencias":
-        nivel_prioridad = data.get("nivel_prioridad")
-        if not nivel_prioridad:
-            return jsonify({"detail": "Para cita de urgencias, se requiere el nivel de prioridad."}), 400
-        nueva_cita = CitaUrgencias(id_cita, paciente_obj, medico_asignado, fecha_hora_fmt_gestor, nivel_prioridad=nivel_prioridad, motivo=motivo)
-    else:
-        return jsonify({"detail": "Tipo de cita no válido. Opciones: presencial, telefonica, urgencias."}), 400
-    if nueva_cita:
-        gestor_de_citas.anadir_cita(nueva_cita)
-        return jsonify({"mensaje": f"Tu solicitud de cita {tipo_cita} ha sido registrada con ID: {id_cita}.", "id_cita": id_cita}), 201
-    else:
-        return jsonify({"detail": "Error al crear la cita."}), 500
+    except ValueError as e:
+        return jsonify({"detail": f"Formato de fecha/hora inválido. Usa YYYY-MM-DDTHH:MM:SS: {str(e)}"}), 400
 
+    db = next(get_db())
+    try:
+        paciente_db_obj = db.query(PacienteDB).filter(PacienteDB.id == username_paciente_id).first()
+        if not paciente_db_obj:
+            return jsonify({"detail": f"Paciente con ID {username_paciente_id} no encontrado en la base de datos."}), 404
+
+        paciente_obj = Paciente(
+            id=paciente_db_obj.id,
+            username=paciente_db_obj.username,
+            password=paciente_db_obj.password, # Esto es el hash, tu clase Paciente lo acepta
+            nombre=paciente_db_obj.nombre,
+            apellido=paciente_db_obj.apellido,
+            edad=paciente_db_obj.edad,
+            genero=paciente_db_obj.genero,
+            estado=paciente_db_obj.estado,
+            historial_medico=getattr(paciente_db_obj, 'historial_medico', None) # Asumiendo que existe en PacienteDB
+        )
+
+        id_cita = str(uuid.uuid4())
+        nueva_cita = None
+        if tipo_cita == "presencial":
+            centro = data.get("centro")
+            if not centro:
+                return jsonify({"detail": "Para cita presencial, se requiere el centro."}), 400
+            nueva_cita = gestor_de_citas.CitaPresencial(id_cita, paciente_obj, medico_asignado, fecha_hora_fmt_gestor, centro=centro, motivo=motivo)
+        elif tipo_cita == "telefonica":
+            telefono_contacto = data.get("telefono_contacto")
+            if not telefono_contacto:
+                return jsonify({"detail": "Para cita telefónica, se requiere el teléfono de contacto."}), 400
+            nueva_cita = gestor_de_citas.CitaTelefonica(id_cita, paciente_obj, medico_asignado, fecha_hora_fmt_gestor, telefono_contacto=telefono_contacto, motivo=motivo)
+        elif tipo_cita == "urgencias":
+            nivel_prioridad = data.get("nivel_prioridad")
+            if not nivel_prioridad:
+                return jsonify({"detail": "Para cita de urgencias, se requiere el nivel de prioridad."}), 400
+            nueva_cita = gestor_de_citas.CitaUrgencias(id_cita, paciente_obj, medico_asignado, fecha_hora_fmt_gestor, nivel_prioridad=nivel_prioridad, motivo=motivo)
+        else:
+            return jsonify({"detail": "Tipo de cita no válido. Opciones: presencial, telefonica, urgencias."}), 400
+
+        if nueva_cita:
+            try:
+                gestor = gestor_de_citas.GestorCitas()  # Crea una instancia aquí
+                gestor.anadir_cita(nueva_cita)
+                return jsonify({"mensaje": f"Tu solicitud de cita {tipo_cita} ha sido registrada con ID: {id_cita}.", "id_cita": id_cita}), 201
+            except Exception as e:
+                error_message = f"Error al añadir la cita: {str(e)}"
+                logging.error(error_message)
+                return jsonify({"detail": error_message}), 500
+        else:
+            return jsonify({"detail": "Error al crear la cita."}), 500
+
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Error general al pedir cita: {str(e)}")
+        return jsonify({"detail": f"Error al procesar la solicitud de cita: {str(e)}"}), 500
+    finally:
+        db.close()
 # === Médicos CRUD ===
 @app.route('/medicos', methods=['GET'])
 def listar_medicos():
