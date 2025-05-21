@@ -40,8 +40,10 @@ def crear_tabla_asignaciones() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             paciente_id TEXT NOT NULL,
             medico_id TEXT NOT NULL,
+            id_enfermero TEXT NOT NULL,
             FOREIGN KEY(paciente_id) REFERENCES pacientes(id) ON DELETE CASCADE,
-            FOREIGN KEY(medico_id)   REFERENCES medicos(id)   ON DELETE CASCADE
+            FOREIGN KEY(medico_id) REFERENCES medicos(id)   ON DELETE CASCADE,
+            FOREIGN KEY (id_enfermero) REFERENCES enfermeros(id) ON DELETE CASCADE
         );
         '''
     )
