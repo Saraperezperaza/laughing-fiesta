@@ -18,9 +18,12 @@ import requests
 import uuid
 import sqlite3
 import os
-from werkzeug.security import generate_password_hash, check_password_hash # Importar para hashing
+from werkzeug.security import generate_password_hash, check_password_hash  # Importar para hashing
 from datetime import datetime
-
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String
 
 # Importar módulos de BD
 from Base_De_Datos.tablas.tabla_SIPS import crear_tabla_sip, insertar_sip, leer_sip, eliminar_sip
@@ -34,20 +37,30 @@ from Base_De_Datos.tablas.tabla_auxiliar import crear_tabla_auxiliares, insertar
 from generador_pdf import generar_pdf_paciente
 import gestor_de_citas
 from gestor_de_citas import CitaPresencial, CitaTelefonica, CitaUrgencias
-
+from tablas.models import PacienteDB, MedicoDB, EnfermeroDB
 # Configuración RxNorm
 RXNORM_URL = "https://rxnav.nlm.nih.gov/REST/drugs.json"
 
 # Inicializar Flask
 app = Flask(__name__)
-
+# --- Configuración de la base de datos ---
+DATABASE_URL = "sqlite:///./Base_De_Datos/tablas/bdd.db"
+engine = create_engine(DATABASE_URL, echo=False)  # echo=True para ver las consultas SQL
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 # Crear tablas al inicio
-crear_tabla_sip()
-crear_tabla_pacientes()
-crear_tabla_medicos()
-crear_tabla_enfermeros()
-crear_tabla_habitaciones()
-crear_tabla_auxiliares()
+# crear_tabla_sip()
+# crear_tabla_pacientes()
+# crear_tabla_medicos()
+# crear_tabla_enfermeros()
+# crear_tabla_habitaciones()
+# crear_tabla_auxiliares()
 
 # Helper para conexiones directas (para actualizaciones sencillas)
 def _conectar_bd():
@@ -63,6 +76,7 @@ def _conectar_bd():
     conn = sqlite3.connect(path)
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
+
 
 # Autenticación
 def requiere_autenticacion(f):
@@ -801,6 +815,93 @@ def descargar_pdf(usuario):
         return jsonify({"pdf": nombre_pdf})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+# --- Endpoints de registro ---
 
+@app.route("/pacientes/register", methods=["POST"])
+def register_paciente():
+    data = request.get_json()
+    if not data:
+        return jsonify({"detail": "No se proporcionaron datos de registro."}), 400
+    username = data.get("username")
+    password = data.get("password")
+    nombre = data.get("nombre")
+    apellido = data.get("apellido")
+    edad = data.get("edad")
+    genero = data.get("genero")
+    estado = data.get("estado")
+    if not all([username, password, nombre, apellido, edad, genero, estado]):
+        return jsonify({"detail": "Todos los campos son obligatorios."}), 400
+    db = next(get_db())
+    existing_user = db.query(PacienteDB).filter(PacienteDB.username == username).first()
+    if existing_user:
+        return jsonify({"detail": f"El username '{username}' ya está registrado."}), 409
+    hashed_password = generate_password_hash(password)
+
+
+new_paciente = PacienteDB(id=username, username=username, password=hashed_password, nombre=nombre, apellido=apellido,
+                          edad=edad, genero=genero, estado=estado)
+try:
+    db.add(new_paciente)
+    db.commit()
+    return jsonify({"message": f"Paciente '{username}' registrado exitosamente."}, 201)
+except Exception as e:
+    db.rollback()
+    return jsonify({"detail": f"Error al registrar el paciente: {str(e)}"}, 500)
+
+
+@app.route("/medicos/register", methods=["POST"])
+def register_medico():
+    data = request.get_json()
+    if not data:
+        return jsonify({"detail": "No se proporcionaron datos de registro."}), 400
+    username = data.get("username")
+    password = data.get("password")
+    especialidad = data.get("especialidad")
+    antiguedad = data.get("antiguedad")
+    id = data.get("id")
+    if not all([username, password, especialidad, antiguedad, id]):
+        return jsonify({"detail": "Todos los campos son obligatorios."}), 400
+    db = next(get_db())
+    existing_user = db.query(MedicoDB).filter(MedicoDB.username == username).first()
+    if existing_user:
+        return jsonify({"detail": f"El username '{username}' ya está registrado como médico."}), 409
+    hashed_password = generate_password_hash(password)
+    new_medico = MedicoDB(id=id, username=username, password=hashed_password, especialidad=especialidad,
+                          antiguedad=antiguedad)
+    try:
+        db.add(new_medico)
+        db.commit()
+        return jsonify({"message": f"Médico '{username}' registrado exitosamente."}, 201)
+    except Exception as e:
+        db.rollback()
+        return jsonify({"detail": f"Error al registrar el médico: {str(e)}"}, 500)
+
+
+@app.route("/enfermeros/register", methods=["POST"])
+def register_enfermero():
+    data = request.get_json()
+    if not data:
+        return jsonify({"detail": "No se proporcionaron datos de registro."}), 400
+    username = data.get("username")
+    password = data.get("password")
+    antieguedad = data.get("antieguedad")
+    especialidad = data.get("especialidad")
+    id = data.get("id")
+    if not all([username, password, antieguedad, especialidad, id]):
+        return jsonify({"detail": "Todos los campos son obligatorios."}), 400
+    db = next(get_db())
+    existing_user = db.query(EnfermeroDB).filter(EnfermeroDB.username == username).first()
+    if existing_user:
+        return jsonify({"detail": f"El username '{username}' ya está registrado como enfermero."}), 409
+    hashed_password = generate_password_hash(password)
+    new_enfermero = EnfermeroDB(id=id, username=username, password=hashed_password, antieguedad=antieguedad,
+                                especialidad=especialidad)
+    try:
+        db.add(new_enfermero)
+        db.commit()
+        return jsonify({"message": f"Enfermero '{username}' registrado exitosamente."}, 201)
+    except Exception as e:
+        db.rollback()
+        return jsonify({"detail": f"Error al registrar el enfermero: {str(e)}"}, 500)
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
