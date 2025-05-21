@@ -55,7 +55,7 @@ class CalendarioVacunacion:
         return vacunas_recomendadas
 
     # Mostrar calendario de vacunación
-    # llama al método anterior(obtener_vacunas) para obtener las vacunas del paciente
+    # llama al méodo anterior(obtener_vacunas) para obtener las vacunas del paciente
     # - si hay vacunas:
     # imprime un encabezado con el nombre del paciente
     # vemos la lista de cada vacuna en consola
