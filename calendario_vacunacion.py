@@ -21,7 +21,7 @@ class CalendarioVacunacion:
             "alergico": ["Vacuna antialérgica", "Vacuna para asma"]
         }
 
-    # Método para determinar la próxima vacuna según la edad y condiciones del paciente
+    # Méodo para determinar la próxima vacuna según la edad y condiciones del paciente
     # tomamos un objeto paciente y extrae su edad
     # verificamos si el paciente tiene el atributo alergias
     # inicializamos una lista vacía vacunas_recomendadas
