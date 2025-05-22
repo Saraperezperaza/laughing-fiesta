@@ -527,12 +527,7 @@ def main():
                     elif GLOBAL_ROLE == 'medico':
                         menu_medico()
                     elif GLOBAL_ROLE == 'enfermero':
-                        # El menú de enfermero no está detallado en la API,
-                        # pero se puede añadir siguiendo el mismo patrón.
-                        print("Menú de enfermero no implementado en esta versión CLI.")
-                        GLOBAL_USERNAME = None  # Forzar logout si no hay menú
-                        GLOBAL_PASSWORD = None
-                        GLOBAL_ROLE = None
+                        menu_enfermero()
             elif choice == '0':
                 print("Saliendo de la aplicación. ¡Hasta pronto!")
                 break
@@ -546,7 +541,7 @@ def main():
             elif GLOBAL_ROLE == 'medico':
                 menu_medico()
             elif GLOBAL_ROLE == 'enfermero':
-                print("Menú de enfermero no implementado en esta versión CLI.")
+                menu_enfermero()
                 GLOBAL_USERNAME = None  # Forzar logout si no hay menú
                 GLOBAL_PASSWORD = None
                 GLOBAL_ROLE = None
